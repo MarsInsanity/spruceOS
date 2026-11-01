@@ -92,6 +92,9 @@ def initialize_device(device, main_ui_mode):
     elif "POWKIDDY_V10" == device:
         from devices.darkmoss.v10 import V10
         Device.init(V10(device))
+    elif "ANBERNIC_RG351P" == device:
+        from devices.darkmoss.rg351p import RG351P
+        Device.init(RG351P(device))
     elif "MAGICX_ZERO28" == device or "SPRUCE_MAGICX_ZERO28" == device:
         from devices.magicx.magicx_zero28 import MagicXZero28
         Device.init(MagicXZero28(device, main_ui_mode))

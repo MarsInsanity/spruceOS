@@ -158,8 +158,8 @@ only where needed.
 
   - DSperate generally shares configs by control layout. Dedicated configs in
     `Emu/NDS/dsperate-configs/` are used where a device or mode needs different
-    settings: A30 has its own rendering and performance settings; V10 and RGB30
-    need different hotkeys because they lack a menu/guide button; Zero40 needs
+    settings: A30 has its own rendering and performance settings; V10, RGB30
+    and RG351P need different hotkeys because they lack a menu/guide button; Zero40 needs
     touchscreen settings; Pixel2 needs settings for its inverted buttons; and
     Tate mode uses a rotated-screen config. For a new device, add a dedicated
     config only if its controls, display, touch, or hotkeys cannot use an

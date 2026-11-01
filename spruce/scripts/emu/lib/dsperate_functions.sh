@@ -56,7 +56,7 @@ seed_dsperate_config() {
 			 /mnt/SDCARD/Saves/states/dsperate \
 			 /mnt/SDCARD/Saves/dsperate/games
 
-	for _cfg in a30.ini rgb30.ini v10.ini no-sticks.ini one-stick.ini two-sticks.ini tate.ini zero40.ini games/BootMenu.ini games/BootMenuDSi.ini; do
+	for _cfg in a30.ini rgb30.ini v10.ini rg351p.ini no-sticks.ini one-stick.ini two-sticks.ini tate.ini zero40.ini games/BootMenu.ini games/BootMenuDSi.ini; do
 		if [ ! -f "${_cfg_dir}/${_cfg}" ] && [ -f "${_src_dir}/${_cfg}" ]; then
 			cp -f "${_src_dir}/${_cfg}" "${_cfg_dir}/${_cfg}"
 			log_message "DSperate: seeded $_cfg"
@@ -246,7 +246,14 @@ run_dsperate() {
 				fi
 				;;
 			"1")
-				_config_path="/mnt/SDCARD/Saves/dsperate/one-stick.ini"
+				if [ "$PLATFORM" = "RG351P" ]; then
+					# RG351P: one stick but no menu/guide button, so SELECT is "mod"
+					# (as on the V10), and the stick click is spruce's menu button,
+					# not the stylus
+					_config_path="/mnt/SDCARD/Saves/dsperate/rg351p.ini"
+				else
+					_config_path="/mnt/SDCARD/Saves/dsperate/one-stick.ini"
+				fi
 				;;
 			*)
 				if [ "$PLATFORM" = "RGB30" ]; then
