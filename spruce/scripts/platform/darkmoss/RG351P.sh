@@ -157,6 +157,50 @@ vibrate() {
     _rg351p_motor_off "$_pwm"
 }
 
+# The pad is a USB device behind a USB hub, and resume re-enumerates it: the
+# input node is removed and created again. PyUI reopens its node by itself
+# (KeyWatcherController), but menubutton_watchdog.sh and buttons_watchdog.sh
+# each read it through one getevent that exits with the old node, and they end
+# with it: after waking, the stick click no longer opened the menu (seen on
+# hardware). sleep_helper.sh calls device_exit_sleep, then starts
+# idle_watchdog.sh again; the pad can come back a moment after that, so watch
+# in the background: if menubutton_watchdog.sh has died within 15 s, wait for
+# the pad, resolve its node again (by name: the number can change) and restart
+# the readers. restart_pad_readers starts idle_watchdog.sh too, so the one
+# sleep_helper.sh just started is stopped first.
+_rg351p_menu_watchdog_alive() {
+    for _pid in $(pgrep -f /mnt/SDCARD/spruce/scripts/menubutton_watchdog.sh 2>/dev/null); do
+        _wd_runs_script "$_pid" /mnt/SDCARD/spruce/scripts/menubutton_watchdog.sh && return 0
+    done
+    return 1
+}
+
+_rg351p_rearm_pad_readers() {
+    _i=0
+    while [ "$_i" -lt 30 ]; do
+        sleep 0.5
+        _rg351p_menu_watchdog_alive || break
+        _i=$((_i + 1))
+    done
+    [ "$_i" -lt 30 ] || return 0
+
+    _i=0
+    while [ "$_i" -lt 40 ] && ! grep -qs "^OpenSimHardware OSH PB Controller$" /sys/class/input/event*/device/name; do
+        sleep 0.25
+        _i=$((_i + 1))
+    done
+    log_message "$PLATFORM: pad readers ended after wake, restarting them"
+    resolve_pad_node
+    resolve_key_event_node
+    stop_running_watchdog /mnt/SDCARD/spruce/scripts/idle_watchdog.sh
+    restart_pad_readers
+}
+
+device_exit_sleep() {
+    darkmoss_exit_sleep
+    _rg351p_rearm_pad_readers </dev/null >/dev/null 2>&1 &
+}
+
 # RetroArch's udev numbering of this pad (RG351P.cfg): Select 22, B 16, X 17,
 # Y 18, L1 19, R1 20, R2 26.
 set_default_ra_hotkeys() {
