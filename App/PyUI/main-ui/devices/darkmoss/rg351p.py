@@ -34,8 +34,8 @@ class RG351PKeyMappingProvider(V10KeyMappingProvider):
     (ABS_HAT0X/Y), looked up straight from the key map. The stick axes are
     ignored in the menus: this pad's axis range is not the V10's +-1800 the
     base provider is sized for, and a wrong deadzone would make the menus
-    scroll on their own. The stick click is MENU; R3 is reported by the
-    controller but the RG351P has no second stick.
+    scroll on their own. One stick click is MENU, per Button Settings > Menu
+    button (the V10 provider's _menu_thumb_code); the other stays L3/R3.
     """
 
     SELECT_KEY = 311
@@ -55,9 +55,6 @@ class RG351PKeyMappingProvider(V10KeyMappingProvider):
         L3_KEY: ControllerInput.L3,
         R3_KEY: ControllerInput.R3,
     }
-
-    def _menu_thumb_code(self):
-        return self.L3_KEY
 
     def get_mapped_events(self, key_event):
         if key_event.event_type == self.EV_ABS:
