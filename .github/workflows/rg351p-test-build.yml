@@ -1,0 +1,134 @@
+name: RG351P test build
+
+# A test package of this branch (the RG351P tree plus this file), for trying
+# it on a device before the spruceOS PR. Same packaging as
+# create-branch-alpha-release.yml, but published as a pre-release in this
+# repository with the run's own token: that workflow publishes to
+# spruceUI/spruceOSNightlies with a secret a fork does not have. Runs on push
+# to this branch (workflow_dispatch only works from the default branch).
+# Not part of the PR: the PR branch is "rg351p".
+
+on:
+  push:
+    branches: [ rg351p-build ]
+  workflow_dispatch:
+
+jobs:
+  create-7z:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install 7zip
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y p7zip-full
+
+      - name: Get version and tag
+        id: get_version
+        run: |
+          BASE="$(< spruce/spruce)"
+          VERSION="${BASE}-RG351P-test-$(date '+%Y%m%d')"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=rg351p-test-$(date '+%Y%m%d')-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          git fetch -q origin Development
+          {
+            echo "Last commit: $(git rev-parse HEAD)"
+            echo "Branch: $GITHUB_REF_NAME"
+            echo ""
+            echo "Commits not in Development:"
+            git log origin/Development..HEAD --pretty=tformat:'- %s (%an)'
+          } > commits_nightly.txt
+
+      - name: Write version marker
+        run: |
+          : > "${{ steps.get_version.outputs.version }}"
+
+      - name: Recombine large files
+        run: |
+          if ls spruce/flip/miyoo355_rootfs_32.img_part* 1>/dev/null 2>&1; then
+            rm -f spruce/flip/miyoo355_rootfs_32.img
+            cat spruce/flip/miyoo355_rootfs_32.img_part* > spruce/flip/miyoo355_rootfs_32.img
+            rm -f spruce/flip/miyoo355_rootfs_32.img_part*
+          fi
+
+          if ls spruce/flip/muOS-pixie-reduced.sqsh-part* 1>/dev/null 2>&1; then
+            rm -f spruce/flip/muOS-pixie-reduced.sqsh
+            cat spruce/flip/muOS-pixie-reduced.sqsh-part* > spruce/flip/muOS-pixie-reduced.sqsh
+            rm -f spruce/flip/muOS-pixie-reduced.sqsh-part*
+          fi
+
+          if ls RetroArch/.retroarch/cores64/scummvm_libretro.so.part* 1>/dev/null 2>&1; then
+            cat RetroArch/.retroarch/cores64/scummvm_libretro.so.part* > RetroArch/.retroarch/cores64/scummvm_libretro.so
+            rm -f RetroArch/.retroarch/cores64/scummvm_libretro.so.part*
+          fi
+
+      - name: Pull selected PyUI Themes
+        run: |
+          mkdir -p Themes
+          RELEASE_URL="https://github.com/spruceUI/PyUI-Themes/releases/download/1"
+
+          wget -q --no-check-certificate -O "Themes/ALEKFULL_NX_ES.7z" "${RELEASE_URL}/ALEKFULL_NX_ES.7z" || true
+          wget -q --no-check-certificate -O "Themes/ART_BOOK_OUTLINE.7z" "${RELEASE_URL}/ART_BOOK_OUTLINE.7z" || true
+          wget -q --no-check-certificate -O "Themes/ART_BOOK_NEXT.7z" "${RELEASE_URL}/ART_BOOK_NEXT.7z" || true
+          wget -q --no-check-certificate -O "Themes/Avocado.7z" "${RELEASE_URL}/Avocado.7z" || true
+          wget -q --no-check-certificate -O "Themes/Cosy by KyleBing.7z" "${RELEASE_URL}/Cosy_by_KyleBing.7z" || true
+          wget -q --no-check-certificate -O "Themes/Grape.7z" "${RELEASE_URL}/Grape.7z" || true
+          wget -q --no-check-certificate -O "Themes/GREEN.7z" "${RELEASE_URL}/GREEN.7z" || true
+          wget -q --no-check-certificate -O "Themes/HeyDW's Blue.7z" "${RELEASE_URL}/HeyDWs_Blue.7z" || true
+          wget -q --no-check-certificate -O "Themes/M.7z" "${RELEASE_URL}/M.7z" || true
+          wget -q --no-check-certificate -O "Themes/MINIMAL.7z" "${RELEASE_URL}/MINIMAL.7z" || true
+          wget -q --no-check-certificate -O "Themes/MinUInspired (logos).7z" "${RELEASE_URL}/MinUInspired_(logos).7z" || true
+          wget -q --no-check-certificate -O "Themes/OTB.7z" "${RELEASE_URL}/OTB.7z" || true
+          wget -q --no-check-certificate -O "Themes/Pico-8.7z" "${RELEASE_URL}/Pico-8.7z" || true
+          wget -q --no-check-certificate -O "Themes/SLABS.7z" "${RELEASE_URL}/SLABS.7z" || true
+          wget -q --no-check-certificate -O "Themes/SPRUCE (simple).7z" "${RELEASE_URL}/SPRUCE_(simple).7z" || true
+
+          find Themes -name "*.7z" -empty -delete
+          ls -lh Themes
+
+      - name: Archive Licenses folder
+        run: |
+          7z a -t7z -mx=9 Licenses.7z Licenses/
+          rm -rf Licenses/
+
+      - name: Create 7z archive
+        run: |
+          7z a -t7z -m0=lzma2:d=16m -mx=7 -ms=off -mf- "spruceV${{ steps.get_version.outputs.version }}.7z" * .tmp_update \
+            -xr!.git \
+            -xr!.github \
+            -x!.gitignore \
+            -x!.gitattributes \
+            -x!create_spruce_release.bat \
+            -x!create_spruce_release.sh \
+            -x!commits_nightly.txt \
+            -x!To-Do.txt
+
+          7z u "spruceV${{ steps.get_version.outputs.version }}.7z" commits_nightly.txt
+
+      - name: Publish the test build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.get_version.outputs.tag }}
+          FILE: spruceV${{ steps.get_version.outputs.version }}.7z
+        run: |
+          ls -lh "$FILE"
+          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes 2>/dev/null || true
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "${{ steps.get_version.outputs.sha }}" \
+            --title "RG351P test build (${{ steps.get_version.outputs.version }})" \
+            --notes "Test package of spruce with the Anbernic RG351P, from \`rg351p\` at \`${{ steps.get_version.outputs.sha }}\`. Not an OTA candidate. Extract it onto the SPRUCEOS drive of a card flashed with the dArkMoss RG351P image; no overlay needed." \
+            --prerelease
+          for attempt in 1 2 3; do
+            timeout 900 gh release upload "$TAG" "$FILE" --repo "$GITHUB_REPOSITORY" --clobber && break
+            [ "$attempt" = 3 ] && { echo "::error::giving up on $FILE"; exit 1; }
+            sleep 30
+          done
+          echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}" >> "$GITHUB_STEP_SUMMARY"
