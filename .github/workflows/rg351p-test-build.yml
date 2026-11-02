@@ -120,7 +120,10 @@ jobs:
 
       - name: Publish the test build
         env:
-          GH_TOKEN: ${{ github.token }}
+          # RELEASE_TOKEN (optional repository secret): a fine-grained token with
+          # Contents and Workflows write here. The run token is refused (403) when
+          # moving a release to a new tag on a commit with workflow changes.
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
           TAG: ${{ steps.get_version.outputs.tag }}
           FILE: spruceV${{ steps.get_version.outputs.version }}.7z
         run: |
