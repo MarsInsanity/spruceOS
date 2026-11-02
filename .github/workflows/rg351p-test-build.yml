@@ -7,6 +7,12 @@ name: RG351P test build
 # spruceUI/spruceOSNightlies with a secret a fork does not have. Runs on push
 # to this branch (workflow_dispatch only works from the default branch).
 # Not part of the PR: the PR branch is "rg351p".
+#
+# The newest test build is always the release tagged exactly "rg351p", so an
+# installer can fetch it from one tag. Before publishing, the release it
+# replaces is retagged rg351p-YYYYMMDD (the UTC day it was built; -2, -3 for
+# further builds that day) at the same commit. Releases from before this
+# scheme (rg351p-test-YYYYMMDD-<sha>) are retagged the same way, oldest first.
 
 on:
   push:
@@ -35,7 +41,7 @@ jobs:
           BASE="$(< spruce/spruce)"
           VERSION="${BASE}-RG351P-test-$(date '+%Y%m%d')"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=rg351p-test-$(date '+%Y%m%d')-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "tag=rg351p" >> "$GITHUB_OUTPUT"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           git fetch -q origin Development
           {
@@ -119,7 +125,28 @@ jobs:
           FILE: spruceV${{ steps.get_version.outputs.version }}.7z
         run: |
           ls -lh "$FILE"
-          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes 2>/dev/null || true
+          repo="$GITHUB_REPOSITORY"
+
+          # archive OLD_TAG: move that release to rg351p-YYYYMMDD[-N] at the same commit.
+          archive() {
+            old="$1"
+            created="$(gh release view "$old" --repo "$repo" --json createdAt -q .createdAt 2>/dev/null)" || return 0
+            day="$(date -u -d "$created" +%Y%m%d)"
+            read -r type sha < <(gh api "repos/${repo}/git/ref/tags/${old}" -q '.object.type + " " + .object.sha')
+            [ "$type" = tag ] && sha="$(gh api "repos/${repo}/git/tags/${sha}" -q .object.sha)"
+            new="rg351p-${day}"; n=2
+            while gh api "repos/${repo}/git/ref/tags/${new}" >/dev/null 2>&1; do new="rg351p-${day}-${n}"; n=$((n + 1)); done
+            gh api -X POST "repos/${repo}/git/refs" -f ref="refs/tags/${new}" -f sha="$sha" >/dev/null
+            gh release edit "$old" --repo "$repo" --tag "$new"
+            gh api -X DELETE "repos/${repo}/git/refs/tags/${old}"
+            echo "Archived ${old} (${sha}) as ${new}"
+          }
+
+          # Releases from the old per-build tags, oldest first, then the current "rg351p".
+          gh api --paginate "repos/${repo}/releases?per_page=100" \
+            -q '.[] | select(.tag_name | startswith("rg351p-test-")) | .created_at + " " + .tag_name' \
+            | sort | while read -r _ old; do archive "$old" </dev/null; done
+          archive "$TAG"
           gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --target "${{ steps.get_version.outputs.sha }}" \
