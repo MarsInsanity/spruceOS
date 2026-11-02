@@ -124,7 +124,7 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "${{ steps.get_version.outputs.sha }}" \
             --title "E5 Plus test build (${{ steps.get_version.outputs.version }})" \
-            --notes "Test package of spruce with the GameMT E5 Plus, from \`E5-Plus\` at \`${{ steps.get_version.outputs.sha }}\`. Not an OTA candidate. Extract it onto the spruce card (TF2) of a GameMT E5 Plus running the dArkMoss e5plus image; no overlay needed." \
+            --notes "Test package of spruce with the GameMT E5 Plus, from \`E5-Plus\` at \`${{ steps.get_version.outputs.sha }}\`. Not an OTA candidate. Extract it onto the spruce card (the slot labelled TF1) of a GameMT E5 Plus running the dArkMoss e5plus image; no overlay needed." \
             --prerelease
           for attempt in 1 2 3; do
             timeout 900 gh release upload "$TAG" "$FILE" --repo "$GITHUB_REPOSITORY" --clobber && break
