@@ -157,39 +157,56 @@ vibrate() {
     _rg351p_motor_off "$_pwm"
 }
 
-# The pad is a USB device behind a USB hub, and resume re-enumerates it: the
-# input node is removed and created again. PyUI reopens its node by itself
+# The pad is a USB device behind a USB hub, and resume re-enumerates it: its
+# input device goes away and comes back. PyUI reopens its node by itself
 # (KeyWatcherController), but menubutton_watchdog.sh and buttons_watchdog.sh
-# each read it through one getevent that exits with the old node, and they end
-# with it: after waking, the stick click no longer opened the menu (seen on
-# hardware). sleep_helper.sh calls device_exit_sleep, then starts
-# idle_watchdog.sh again; the pad can come back a moment after that, so watch
-# in the background: if menubutton_watchdog.sh has died within 15 s, wait for
-# the pad, resolve its node again (by name: the number can change) and restart
-# the readers. restart_pad_readers starts idle_watchdog.sh too, so the one
-# sleep_helper.sh just started is stopped first.
-_rg351p_menu_watchdog_alive() {
-    for _pid in $(pgrep -f /mnt/SDCARD/spruce/scripts/menubutton_watchdog.sh 2>/dev/null); do
-        _wd_runs_script "$_pid" /mnt/SDCARD/spruce/scripts/menubutton_watchdog.sh && return 0
+# read it through getevent, which stays on the old device: after waking, the
+# stick click no longer opened the menu (seen on hardware). A getevent that
+# outlives its device cannot be told from a working one from outside, so the
+# readers are restarted after every wake, once the pad is back.
+#
+# Back means a new input device: the kernel numbers each one afresh
+# (input2, input3, ...), so the pad's number is kept from boot in
+# RG351P_PAD_INPUT_FILE, and after waking this waits up to 10 s for it to
+# change; if it does not (no re-enumeration), the readers are restarted all
+# the same. sleep_helper.sh calls device_exit_sleep and then starts
+# idle_watchdog.sh again, so this runs in the background, and stops that
+# idle_watchdog.sh before restart_pad_readers (watchdog_launcher.sh's helper
+# for a re-created pad node) starts its own.
+RG351P_PAD_INPUT_FILE="/tmp/rg351p_pad_input"
+
+_rg351p_pad_input_id() {
+    for _dir in /sys/class/input/event*; do
+        [ "$(cat "$_dir/device/name" 2>/dev/null)" = "OpenSimHardware OSH PB Controller" ] || continue
+        _id="$(readlink -f "$_dir/device" 2>/dev/null)"
+        echo "${_id##*/}"
+        return 0
     done
     return 1
 }
 
-_rg351p_rearm_pad_readers() {
-    _i=0
-    while [ "$_i" -lt 30 ]; do
-        sleep 0.5
-        _rg351p_menu_watchdog_alive || break
-        _i=$((_i + 1))
-    done
-    [ "$_i" -lt 30 ] || return 0
+# The pad's input device at boot, for _rg351p_rearm_pad_readers to compare to.
+if [ ! -s "$RG351P_PAD_INPUT_FILE" ]; then
+    _rg351p_pad_input_id > "$RG351P_PAD_INPUT_FILE" 2>/dev/null || rm -f "$RG351P_PAD_INPUT_FILE"
+fi
 
+_rg351p_rearm_pad_readers() {
+    _before="$(cat "$RG351P_PAD_INPUT_FILE" 2>/dev/null)"
+    _now=""
     _i=0
-    while [ "$_i" -lt 40 ] && ! grep -qs "^OpenSimHardware OSH PB Controller$" /sys/class/input/event*/device/name; do
+    while [ "$_i" -lt 40 ]; do
+        _now="$(_rg351p_pad_input_id)"
+        [ -n "$_now" ] && [ "$_now" != "$_before" ] && break
         sleep 0.25
         _i=$((_i + 1))
     done
-    log_message "$PLATFORM: pad readers ended after wake, restarting them"
+    if [ -n "$_now" ] && [ "$_now" != "$_before" ]; then
+        log_message "$PLATFORM: pad came back as $_now (was ${_before:-unknown}) after wake, restarting the pad readers"
+        sleep 0.5    # let udev finish the new node before the readers open it
+    else
+        log_message "$PLATFORM: pad still ${_now:-missing} after wake, restarting the pad readers anyway"
+    fi
+    [ -n "$_now" ] && echo "$_now" > "$RG351P_PAD_INPUT_FILE"
     resolve_pad_node
     resolve_key_event_node
     stop_running_watchdog /mnt/SDCARD/spruce/scripts/idle_watchdog.sh
