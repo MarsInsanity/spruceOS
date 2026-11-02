@@ -136,9 +136,14 @@ jobs:
             [ "$type" = tag ] && sha="$(gh api "repos/${repo}/git/tags/${sha}" -q .object.sha)"
             new="rg351p-${day}"; n=2
             while gh api "repos/${repo}/git/ref/tags/${new}" >/dev/null 2>&1; do new="rg351p-${day}-${n}"; n=$((n + 1)); done
-            gh api -X POST "repos/${repo}/git/refs" -f ref="refs/tags/${new}" -f sha="$sha" >/dev/null
-            gh release edit "$old" --repo "$repo" --tag "$new"
-            gh api -X DELETE "repos/${repo}/git/refs/tags/${old}"
+            # The release edit creates the new tag at --target. Creating it through the
+            # git refs API is refused to this token (403) for commits that carry
+            # workflow changes, as every rg351p-build commit does.
+            gh release edit "$old" --repo "$repo" --tag "$new" --target "$sha"
+            [ "$(gh release view "$new" --repo "$repo" --json tagName -q .tagName)" = "$new" ] \
+              || { echo "::error::${old} did not move to ${new}"; exit 1; }
+            gh api -X DELETE "repos/${repo}/git/refs/tags/${old}" \
+              || echo "::warning::release moved to ${new}, but the old tag ${old} could not be deleted"
             echo "Archived ${old} (${sha}) as ${new}"
           }
 
