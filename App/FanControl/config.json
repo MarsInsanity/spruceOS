@@ -1,0 +1,8 @@
+{
+  "label": "Fan Control",
+  "icon": "fancontrol.png",
+  "pyuiEntry": "rg552_fancontrol.native:run",
+  "description": "Set the fan to Auto, High, Medium, Low or Off",
+  "devices": ["RG552"],
+  "hideInSimpleMode": false
+}

@@ -82,6 +82,18 @@ else
                 PLATFORM_FAMILY="twig"
             fi
             ;;
+        *0xd08*)                                                                # RK3399 (A72 + A53)
+            # Checked before 0xd03: the RK3399's little cores are the H700's
+            # Cortex-A53 part, only its big A72s (0xd08) tell them apart.
+            if grep -q '^OS_NAME="DARKMOSS"' /etc/os-release 2>/dev/null; then
+                PLATFORM="$(sed -n 's/^SPRUCE_PLATFORM="\(.*\)"/\1/p' /etc/os-release 2>/dev/null)"
+                export PLATFORM="${PLATFORM:-RG552}"
+                PLATFORM_FAMILY="darkmoss"
+            else
+                export PLATFORM="RG552"
+                PLATFORM_FAMILY="darkmoss"
+            fi
+            ;;
         *0xd03*)                                                                # H700
             export SPRUCE_BASEOS=1
             PLATFORM_FAMILY="h700"
@@ -164,6 +176,7 @@ device_names() {
         XUMiniM)          echo "MAGICX_XU_MINI_M"; echo "DARKMOSS" ;;
         G350)             echo "G350";    echo "DARKMOSS" ;;
         V10)              echo "POWKIDDY_V10"; echo "DARKMOSS" ;;
+        RG552)            echo "RG552";   echo "DARKMOSS" ;;
         Zero28)           echo "MAGICX_ZERO28"; echo "OAKMOSS_A133P" ;;
         Zero40)           echo "MAGICX_ZERO40"; echo "OAKMOSS_A133P" ;;
         XU20)             echo "MAGICX_XU20";   echo "OAKMOSS_A133P" ;;

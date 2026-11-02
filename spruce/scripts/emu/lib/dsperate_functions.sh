@@ -263,6 +263,9 @@ run_dsperate() {
 
 				else
 					_config_path="/mnt/SDCARD/Saves/dsperate/two-sticks.ini"
+					# RG552: portrait panel; DSperate's KMS scanout skips the rotated SDL
+					# (as on the A10 Mini V4), so it turns the frame itself (UNVERIFIED).
+					[ "$PLATFORM" = "RG552" ] && export DS_ROTATE=270
 				fi
 				;;
 		esac

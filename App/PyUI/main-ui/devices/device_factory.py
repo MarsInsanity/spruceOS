@@ -89,6 +89,9 @@ def initialize_device(device, main_ui_mode):
     elif "G350" == device:
         from devices.darkmoss.g350 import G350
         Device.init(G350(device))
+    elif "RG552" == device:
+        from devices.darkmoss.rg552 import Rg552
+        Device.init(Rg552(device, main_ui_mode))
     elif "POWKIDDY_V10" == device:
         from devices.darkmoss.v10 import V10
         Device.init(V10(device))

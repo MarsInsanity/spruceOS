@@ -1,0 +1,8 @@
+{
+  "label": "Boot to Android",
+  "icon": "boottoandroid.png",
+  "pyuiEntry": "rg552_boottoandroid.native:run",
+  "description": "Reboot into Android on the internal storage",
+  "devices": ["RG552"],
+  "hideInSimpleMode": false
+}
