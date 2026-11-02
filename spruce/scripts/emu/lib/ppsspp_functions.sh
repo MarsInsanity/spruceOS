@@ -229,11 +229,11 @@ get_ppsspp_config_suffix() {
 load_ppsspp_configs() {
 	suffix="$(get_ppsspp_config_suffix)"
 	cp -f "${PPSSPP_LIVE_SYSTEM_DIR}/controls-${suffix}.ini" "${PPSSPP_LIVE_SYSTEM_DIR}/controls.ini"
-	cp -f "${PPSSPP_LIVE_SYSTEM_DIR}/ppsspp-${suffix}.ini" "${PPSSPP_LIVE_SYSTEM_DIR}/ppsspp.ini"
+	cp -f "${PPSSPP_LIVE_SYSTEM_DIR}/ppsspp-${suffix}" "${PPSSPP_LIVE_SYSTEM_DIR}/ppsspp.ini"
 }
 
 save_ppsspp_configs() {
 	suffix="$(get_ppsspp_config_suffix)"
 	cp -f "${PPSSPP_LIVE_SYSTEM_DIR}/controls.ini" "${PPSSPP_LIVE_SYSTEM_DIR}/controls-${suffix}.ini"
-	cp -f "${PPSSPP_LIVE_SYSTEM_DIR}/ppsspp.ini" "${PPSSPP_LIVE_SYSTEM_DIR}/ppsspp-${suffix}.ini"
+	cp -f "${PPSSPP_LIVE_SYSTEM_DIR}/ppsspp.ini" "${PPSSPP_LIVE_SYSTEM_DIR}/ppsspp-${suffix}"
 }
