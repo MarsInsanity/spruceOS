@@ -221,7 +221,7 @@ device_exit_sleep() {
 # RetroArch's udev numbering of this pad (RG351P.cfg): Select 22, B 16, X 17,
 # Y 18, L1 19, R1 20, R2 26.
 set_default_ra_hotkeys() {
-    RA_FILE="/mnt/SDCARD/Saves/ra-configs/retroarch-$PLATFORM.cfg"
+    RA_FILE="$(platform_path "/mnt/SDCARD/Saves/ra-configs/retroarch-%s.cfg")"
 
     log_message "Resetting RetroArch hotkeys to Spruce defaults."
 
