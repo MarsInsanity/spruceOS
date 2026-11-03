@@ -38,7 +38,7 @@ else
     if [ "$(jq -r '.wifi' "$SYSTEM_JSON" 2>/dev/null)" != "1" ]; then
         bail "WiFi is off, so the update cannot be downloaded. Please enable WiFi from spruce settings and try again."
     fi
-    if ! curl -sfL -m 20 -o /tmp/darkmoss_release.json "$API"; then
+    if ! curl -sf -m 20 -o /tmp/darkmoss_release.json "$API"; then
         bail "Could not reach GitHub to look for a dArkMoss update. Please try again later."
     fi
 
@@ -47,11 +47,11 @@ else
     ASSET_URL="$(jq -r --arg n "$ASSET_NAME" '.assets[]? | select(.name == $n) | .browser_download_url' /tmp/darkmoss_release.json | head -n 1)"
     ASSET_SIZE="$(jq -r --arg n "$ASSET_NAME" '.assets[]? | select(.name == $n) | .size' /tmp/darkmoss_release.json | head -n 1)"
     SUMS_URL="$(jq -r '.assets[]? | select(.name == "SHA256SUMS") | .browser_download_url' /tmp/darkmoss_release.json | head -n 1)"
-    # A fixed tag (RG552) is no version: take it from the payload's name.
-    case "$LATEST" in
-        [0-9]*.[0-9]*.[0-9]*) ;;
-        *) [ -n "$ASSET_NAME" ] && LATEST="$(printf '%s' "$ASSET_NAME" | sed "s/^dArkMoss_${UNIT}_//; s/\\.dmupd$//; s/^[vV]//")" ;;
-    esac
+    # A unit's own release (DARKMOSS_RELEASE_API, the RG552's fixed RG552 tag)
+    # is no version: take it from the payload's name.
+    if [ -n "$DARKMOSS_RELEASE_API" ] && [ -n "$ASSET_NAME" ]; then
+        LATEST="$(printf '%s' "$ASSET_NAME" | sed "s/^dArkMoss_${UNIT}_//; s/\\.dmupd$//; s/^[vV]//")"
+    fi
 
     if [ -z "$ASSET_NAME" ] || [ -z "$ASSET_URL" ]; then
         bail "dArkMoss ${LATEST:-latest} has no update file for this device ($UNIT), so it has to be installed by hand.\n\n$MANUAL_HELP"

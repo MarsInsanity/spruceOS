@@ -41,10 +41,11 @@ if [ -e /usr/magicx ]; then
     export PLATFORM_FAMILY="oakmoss"
 else
     INFO=$(cat /proc/cpuinfo 2> /dev/null)
-    # /proc/cpuinfo lists online cores only: an RK3399 with its A72s parked
-    # (powersave, the screensaver) shows just the A53 part, 0xd03, and would be
-    # taken for an H700. Its device tree says what it is.
-    grep -qas 'rockchip,rk3399' /proc/device-tree/compatible && INFO="0xd08"
+    # /proc/cpuinfo lists online cores only: an RK3399 (RG552) with its A72s
+    # parked (powersave, the screensaver) shows just the A53 part, 0xd03, and
+    # would be taken for an H700. Its Mali-T860 at ff9a0000 tells it apart
+    # (a shell test, nothing runs on any other device).
+    [ -d /sys/devices/platform/ff9a0000.gpu ] && INFO="0xd08"
     case $INFO in
         *sun8i*) export PLATFORM="A30";         PLATFORM_FAMILY="tina-stock" ;;   # A33
         *TG5040*) export PLATFORM="SmartPro";   PLATFORM_FAMILY="tina-stock" ;;
