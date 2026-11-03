@@ -107,8 +107,11 @@ device_low_battery_shutdown_ok() {
 #  - the RK808's interrupt is wired to GPIO3, which the RK3399 PMU cannot wake
 #    from, so spruce's RTC "power off after N minutes asleep" never fires.
 # `touch /mnt/SDCARD/spruce/flags/rg552_real_sleep.lock` opts into suspend-to-RAM.
-RG552_SLEEP_STOP="MainUI ra64.universal ra32.universal retroarch drastic drastic64 $PSP_BIN mupen64plus flycast yabasanshiro scummvm ffplay"
+# Everything a darkmoss session runs in the foreground (PortMaster ports are
+# paused as their own session, from /tmp/last_port_sid).
+RG552_SLEEP_STOP="MainUI ra64.universal ra32.universal retroarch drastic drastic64 $PSP_BIN mupen64plus flycast flycast2024 yabasanshiro scummvm scummvm.64 ffplay dsperate gvu bigpemu pico8_64 pico8_dyn xroar GameTankEmulator OpenBOR_TrimUI OpenBOR_64_mod"
 RG552_SLEEP_BRIGHTNESS="/tmp/rg552_sleep_brightness"
+RG552_SLEEP_GRABS="/tmp/rg552_sleep_grabs"
 
 device_uses_pseudo_sleep() {
     if flag_check "rg552_real_sleep"; then echo "false"; else echo "true"; fi
@@ -133,7 +136,18 @@ device_enter_sleep() {
     # sleep_helper in the foreground, so sleep_helper's reader would never see
     # the wake press. Drop the grab; the watchdog restarts its reader after.
     kill $(pgrep -f "getevent.*-exclusive") 2>/dev/null
+    # Hold the pad, the rocker and the touchscreen while asleep: nothing queues
+    # up for the stopped session (stale taps on wake) and no hotkey acts on the
+    # dark panel. The grabs end with sleep_helper (-pid) or on wake.
+    : > "$RG552_SLEEP_GRABS"
+    for _n in "$EVENT_PATH_READ_INPUTS_SPRUCE" "$EVENT_PATH_VOLUME" "$EVENT_PATH_TOUCH"; do
+        [ -c "$_n" ] || continue
+        getevent -exclusive -pid $$ "$_n" >/dev/null 2>&1 &
+        echo $! >> "$RG552_SLEEP_GRABS"
+    done
     killall -q -STOP $RG552_SLEEP_STOP 2>/dev/null
+    _sid="$(cat /tmp/last_port_sid 2>/dev/null)"
+    [ -n "$_sid" ] && kill -STOP -"$_sid" 2>/dev/null
     cat "$DEVICE_BACKLIGHT_PATH" > "$RG552_SLEEP_BRIGHTNESS" 2>/dev/null
     echo 0 > "$DEVICE_BACKLIGHT_PATH" 2>/dev/null
 }
@@ -146,6 +160,10 @@ device_exit_sleep() {
             ''|0|*[!0-9]*) apply_backlight "$(get_backlight_level)" ;;
             *) echo "$_raw" > "$DEVICE_BACKLIGHT_PATH" 2>/dev/null ;;
         esac
+        kill $(cat "$RG552_SLEEP_GRABS" 2>/dev/null) 2>/dev/null
+        rm -f "$RG552_SLEEP_GRABS"
+        _sid="$(cat /tmp/last_port_sid 2>/dev/null)"
+        [ -n "$_sid" ] && kill -CONT -"$_sid" 2>/dev/null
         killall -q -CONT $RG552_SLEEP_STOP 2>/dev/null
         log_message "Left pseudo sleep"
     fi
@@ -191,8 +209,14 @@ check_if_fw_needs_update() {
         echo "false"
         return
     fi
-    _want="$(curl -sfL -m 20 "$DARKMOSS_RELEASE_API" 2>/dev/null | jq -r '.assets[]?.name' 2>/dev/null |
-        sed -n 's/^dArkMoss_RG552_[vV]\{0,1\}\([0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}\)\.dmupd$/\1/p' | head -n 1)"
+    # Three tries 20 s apart, as github_latest_version: at boot the USB Wi-Fi
+    # may not have an address yet (this runs in the background).
+    for _try in 1 2 3; do
+        _want="$(curl -sfL -m 20 "$DARKMOSS_RELEASE_API" 2>/dev/null | jq -r '.assets[]?.name' 2>/dev/null |
+            sed -n 's/^dArkMoss_RG552_[vV]\{0,1\}\([0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}\)\.dmupd$/\1/p' | head -n 1)"
+        [ -n "$_want" ] && break
+        [ "$_try" -lt 3 ] && sleep 20
+    done
     [ -n "$_want" ] && version_older_than "$_have" "$_want" && echo "true" || echo "false"
 }
 

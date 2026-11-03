@@ -10,7 +10,7 @@ this only picks its mode, which the base keeps across reboots:
   Off     stopped
 
 Whatever the mode, the daemon runs the fan at full speed from 75 C until the
-SoC is back under 80 C.
+SoC is back under 70 C.
 """
 
 import subprocess
