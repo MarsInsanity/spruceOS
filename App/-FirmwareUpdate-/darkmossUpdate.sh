@@ -11,8 +11,10 @@
 . /mnt/SDCARD/spruce/scripts/runtimeHelper.sh
 
 SD_ROOT="/mnt/SDCARD"
-API="https://api.github.com/repos/spruceUI/dArkMoss/releases/latest"
-MANUAL_HELP="Please visit github.com/spruceUI/dArkMoss to manually download the proper image for your device."
+# A unit built elsewhere (the RG552: the BobMoss fork's RG552 tag) names its
+# release in its platform cfg.
+API="${DARKMOSS_RELEASE_API:-https://api.github.com/repos/spruceUI/dArkMoss/releases/latest}"
+MANUAL_HELP="Please visit ${DARKMOSS_MANUAL_URL:-github.com/spruceUI/dArkMoss} to manually download the proper image for your device."
 UNIT="$(darkmoss_unit)"
 
 bail() {
@@ -36,7 +38,7 @@ else
     if [ "$(jq -r '.wifi' "$SYSTEM_JSON" 2>/dev/null)" != "1" ]; then
         bail "WiFi is off, so the update cannot be downloaded. Please enable WiFi from spruce settings and try again."
     fi
-    if ! curl -sf -m 20 -o /tmp/darkmoss_release.json "$API"; then
+    if ! curl -sfL -m 20 -o /tmp/darkmoss_release.json "$API"; then
         bail "Could not reach GitHub to look for a dArkMoss update. Please try again later."
     fi
 
@@ -45,6 +47,11 @@ else
     ASSET_URL="$(jq -r --arg n "$ASSET_NAME" '.assets[]? | select(.name == $n) | .browser_download_url' /tmp/darkmoss_release.json | head -n 1)"
     ASSET_SIZE="$(jq -r --arg n "$ASSET_NAME" '.assets[]? | select(.name == $n) | .size' /tmp/darkmoss_release.json | head -n 1)"
     SUMS_URL="$(jq -r '.assets[]? | select(.name == "SHA256SUMS") | .browser_download_url' /tmp/darkmoss_release.json | head -n 1)"
+    # A fixed tag (RG552) is no version: take it from the payload's name.
+    case "$LATEST" in
+        [0-9]*.[0-9]*.[0-9]*) ;;
+        *) [ -n "$ASSET_NAME" ] && LATEST="$(printf '%s' "$ASSET_NAME" | sed "s/^dArkMoss_${UNIT}_//; s/\\.dmupd$//; s/^[vV]//")" ;;
+    esac
 
     if [ -z "$ASSET_NAME" ] || [ -z "$ASSET_URL" ]; then
         bail "dArkMoss ${LATEST:-latest} has no update file for this device ($UNIT), so it has to be installed by hand.\n\n$MANUAL_HELP"

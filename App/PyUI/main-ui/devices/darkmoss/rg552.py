@@ -27,12 +27,11 @@ class Rg552(DarkmossDevice):
     SELECT_KEY = 704  # BTN_TRIGGER_HAPPY1 (F1)
     START_KEY = 705   # F2
     MENU_KEY = 708    # F5, the F key
-    # A 0-100 backlight and no softvol on the codec itself: the py-ui-config
+    # A 0-100 backlight and the codec's DAC as the volume: the py-ui-config
     # scripts apply spruce's own tables (RG552.cfg).
     VOLUME_BACKLIGHT_CMDS = True
 
     SCALE = 1.5
-    HDMI_STATUS = "/sys/class/drm/card0-HDMI-A-1/status"
 
     def __init__(self, device_name, main_ui_mode=True):
         super().__init__(device_name)
@@ -98,26 +97,22 @@ class Rg552(DarkmossDevice):
         return 270
 
     def output_screen_width(self):
-        if self.should_scale_screen():
-            return 1920
         return int(self.screen_width() * self.SCALE)
 
     def output_screen_height(self):
-        if self.should_scale_screen():
-            return 1080
         return int(self.screen_height() * self.SCALE)
 
     def get_scale_factor(self):
-        # 768 * 1.40625 = 1080 on a 1080p TV; 1.5 fills the 1152-line panel.
-        return 1080 / 768 if self.is_hdmi_connected() else self.SCALE
+        return self.SCALE
 
-    @throttle.limit_refresh(5)
+    # HDMI out is not supported: the system SDL rotates every output ROT_270
+    # and SDL's display 0 is the DSI panel, so an HDMI layout would only draw an
+    # unrotated 1920x1080 frame onto the panel.
     def is_hdmi_connected(self):
-        try:
-            with open(self.HDMI_STATUS) as f:
-                return f.read().strip().lower() == "connected"
-        except OSError:
-            return False
+        return False
+
+    def should_scale_screen(self):
+        return False
 
     # ----- power -----
     @staticmethod

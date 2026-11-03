@@ -9,7 +9,7 @@ this only picks its mode, which the base keeps across reboots:
   Low     about two fifths
   Off     stopped
 
-Whatever the mode, the daemon runs the fan at full speed from 85 C until the
+Whatever the mode, the daemon runs the fan at full speed from 75 C until the
 SoC is back under 80 C.
 """
 
@@ -22,7 +22,7 @@ MODES = [
     ("high", "High"),
     ("medium", "Medium"),
     ("low", "Low"),
-    ("off", "Off (full speed above 85°C)"),
+    ("off", "Off (full speed above 75°C)"),
 ]
 
 

@@ -12,9 +12,44 @@ clear_stale_pmic_power_en() {
 }
 
 # The BSP es8316 driver owns the jack (hp-det-gpio, gpio0 PB0) and switches the
-# speaker amp itself, so there is no path for spruce to set.
+# speaker amp itself, so there is no path for spruce to set. Volume lives on the
+# codec's DAC (RG552.cfg), so keep spruce's softvol, where a program uses it,
+# from attenuating a second time.
 apply_playback_path() {
-    :
+    amixer -q sset Master 100% 2>/dev/null
+}
+
+  ###################
+#####   INPUT   #####
+  ###################
+
+# By name, not by capability: the power key is rk_keys' "rk29-keypad" (the
+# RK808 has no pwrkey cell, so nothing is called *power*), and HDMI-CEC's
+# "RC for dw_hdmi" declares every key code and enumerates before the real
+# rocker, gpio-keys "volume-keys". Event numbers are not stable across boots.
+resolve_key_event_node() {
+    _seen=""
+    for _dir in /sys/class/input/event*; do
+        [ -e "$_dir" ] || continue
+        _ev="${_dir##*/}"
+        _name="$(cat "$_dir/device/name" 2>/dev/null)"
+        _seen="$_seen ${_ev}:${_name}"
+        case "$_name" in
+            rk29-keypad) EVENT_PATH_POWER="/dev/input/$_ev" ;;
+            volume-keys) EVENT_PATH_VOLUME="/dev/input/$_ev" ;;
+        esac
+    done
+    VOLUME_KEYS_ON_PAD=0
+    export EVENT_PATH_POWER EVENT_PATH_VOLUME VOLUME_KEYS_ON_PAD
+    log_message "$PLATFORM: input nodes:$_seen; power $EVENT_PATH_POWER, volume $EVENT_PATH_VOLUME"
+    {
+        echo "EVENT_PATH_READ_INPUTS_SPRUCE='${EVENT_PATH_READ_INPUTS_SPRUCE}'"
+        echo "EVENT_PATH_SEND_TO_RA_AND_PPSSPP='${EVENT_PATH_READ_INPUTS_SPRUCE}'"
+        echo "EVENT_PATH_SEND_TO_DRASTIC='${EVENT_PATH_READ_INPUTS_SPRUCE}'"
+        echo "EVENT_PATH_VOLUME='${EVENT_PATH_VOLUME}'"
+        echo "EVENT_PATH_POWER='${EVENT_PATH_POWER}'"
+        echo "VOLUME_KEYS_ON_PAD='0'"
+    } > "$SPRUCE_INPUT_NODES_FILE" 2>/dev/null
 }
 
 # The jack GPIO is claimed by the codec, so read its level from debugfs:
@@ -45,12 +80,76 @@ device_get_charging_status() {
     echo "$_st"
 }
 
+# A gauge that failed to probe reads as 0%: never power off on that.
 device_low_battery_shutdown_ok() {
+    if [ ! -r "$BATTERY/capacity" ]; then
+        log_message "$PLATFORM battery: no fuel gauge at '$BATTERY', not forcing a shutdown"
+        return 1
+    fi
     case "$(cat "$BATTERY/status" 2>/dev/null)" in
         Charging|Full)
             log_message "$PLATFORM battery: charging, not forcing a shutdown"
             return 1 ;;
     esac
+    return 0
+}
+
+  ###################
+#####   SLEEP   #####
+  ###################
+
+# Pseudo sleep (oakMOSS's model): the panel goes dark and the session stops
+# until sleep_helper sees the power key, or its own timer powers off. Kernel
+# suspend is not the default here, because on this board it is untested and risky:
+#  - neither SD slot can be power-cycled (no vmmc) and this 4.4 kernel lacks
+#    mainline's "card still at 1.8 V after resume" fixup, so a UHS card can
+#    fail to come back, and TF1 is the root filesystem;
+#  - the RK808's interrupt is wired to GPIO3, which the RK3399 PMU cannot wake
+#    from, so spruce's RTC "power off after N minutes asleep" never fires.
+# `touch /mnt/SDCARD/spruce/flags/rg552_real_sleep.lock` opts into suspend-to-RAM.
+RG552_SLEEP_STOP="MainUI ra64.universal ra32.universal retroarch drastic drastic64 $PSP_BIN mupen64plus flycast yabasanshiro scummvm ffplay"
+RG552_SLEEP_BRIGHTNESS="/tmp/rg552_sleep_brightness"
+
+device_uses_pseudo_sleep() {
+    if flag_check "rg552_real_sleep"; then echo "false"; else echo "true"; fi
+}
+
+# No lid: sleep_helper's pseudo loop takes the power key while this reads "1".
+device_lid_open() {
+    echo "1"
+}
+
+device_enter_sleep() {
+    IDLE_TIMEOUT="$1"
+    if flag_check "rg552_real_sleep"; then
+        log_message "Entering sleep w/ IDLE_TIMEOUT of $IDLE_TIMEOUT"
+        save_sleep_info "$IDLE_TIMEOUT" || return 1
+        set_wake_alarm "$IDLE_TIMEOUT" "$WAKE_ALARM_PATH" || return 1
+        trigger_device_sleep
+        return
+    fi
+    log_message "Entering pseudo sleep w/ IDLE_TIMEOUT of $IDLE_TIMEOUT"
+    # The power watchdog holds the key with an exclusive grab and runs
+    # sleep_helper in the foreground, so sleep_helper's reader would never see
+    # the wake press. Drop the grab; the watchdog restarts its reader after.
+    kill $(pgrep -f "getevent.*-exclusive") 2>/dev/null
+    killall -q -STOP $RG552_SLEEP_STOP 2>/dev/null
+    cat "$DEVICE_BACKLIGHT_PATH" > "$RG552_SLEEP_BRIGHTNESS" 2>/dev/null
+    echo 0 > "$DEVICE_BACKLIGHT_PATH" 2>/dev/null
+}
+
+device_exit_sleep() {
+    if ! flag_check "rg552_real_sleep"; then
+        _raw="$(cat "$RG552_SLEEP_BRIGHTNESS" 2>/dev/null)"
+        rm -f "$RG552_SLEEP_BRIGHTNESS"
+        case "$_raw" in
+            ''|0|*[!0-9]*) apply_backlight "$(get_backlight_level)" ;;
+            *) echo "$_raw" > "$DEVICE_BACKLIGHT_PATH" 2>/dev/null ;;
+        esac
+        killall -q -CONT $RG552_SLEEP_STOP 2>/dev/null
+        log_message "Left pseudo sleep"
+    fi
+    darkmoss_exit_sleep
 }
 
 # The common defaults with this pad's udev numbering: select 12, L3 14.
@@ -74,6 +173,27 @@ set_default_ra_hotkeys() {
         "input_state_slot_decrease_btn = \"nul\"" \
         "input_state_slot_increase_btn = \"nul\"" \
         "input_toggle_slowmotion_btn = \"nul\""
+}
+
+  ##########################
+#####   FIRMWARE UPDATES   #####
+  ##########################
+
+# RG552 builds live on the fork's fixed RG552 tag (DARKMOSS_RELEASE_API in
+# RG552.cfg), whose version is in the payload's name, not in the tag.
+check_if_fw_needs_update() {
+    _have="$(darkmoss_installed_version)"
+    if [ -z "$_have" ]; then
+        echo "true"
+        return
+    fi
+    if ! wifi_available_on_device || [ "$(jq -r '.wifi' "$SYSTEM_JSON" 2>/dev/null)" != "1" ]; then
+        echo "false"
+        return
+    fi
+    _want="$(curl -sfL -m 20 "$DARKMOSS_RELEASE_API" 2>/dev/null | jq -r '.assets[]?.name' 2>/dev/null |
+        sed -n 's/^dArkMoss_RG552_[vV]\{0,1\}\([0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}\)\.dmupd$/\1/p' | head -n 1)"
+    [ -n "$_want" ] && version_older_than "$_have" "$_want" && echo "true" || echo "false"
 }
 
   ###############
