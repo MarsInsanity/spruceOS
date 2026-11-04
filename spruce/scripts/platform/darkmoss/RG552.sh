@@ -151,6 +151,45 @@ RG552_SLEEP_BRIGHTNESS="/tmp/rg552_sleep_brightness"
 # the same by hand and puts back what it was.
 RG552_POWER_LED="/sys/class/leds/battery_green/brightness"
 RG552_SLEEP_LED="/tmp/rg552_sleep_led"
+# Pseudo sleep keeps the SoC running, so it also takes the clocks down: the A72s
+# offline, the A53s held at 408 MHz, the GPU on devfreq's powersave. Asleep
+# from a Performance or Overclock game they would otherwise sit at full
+# voltage. What was there is saved here and put back on wake.
+RG552_SLEEP_CLOCKS="/tmp/rg552_sleep_clocks"
+
+rg552_sleep_clocks_down() {
+    : > "$RG552_SLEEP_CLOCKS"
+    for _c in 4 5; do
+        [ -r "/sys/devices/system/cpu/cpu$_c/online" ] &&
+            echo "online $_c $(cat "/sys/devices/system/cpu/cpu$_c/online")" >> "$RG552_SLEEP_CLOCKS"
+    done
+    [ -r "$CPU_0_DIR/scaling_max_freq" ] &&
+        echo "freq $(cat "$CPU_0_DIR/scaling_min_freq") $(cat "$CPU_0_DIR/scaling_max_freq")" >> "$RG552_SLEEP_CLOCKS"
+    [ -r "$GPU_GOVENOR_DIR/governor" ] &&
+        echo "gpu $(cat "$GPU_GOVENOR_DIR/governor")" >> "$RG552_SLEEP_CLOCKS"
+
+    for _c in 4 5; do
+        echo 0 > "/sys/devices/system/cpu/cpu$_c/online" 2>/dev/null
+    done
+    # min first: the max may not go below it.
+    echo 408000 > "$CPU_0_DIR/scaling_min_freq" 2>/dev/null
+    echo 408000 > "$CPU_0_DIR/scaling_max_freq" 2>/dev/null
+    echo powersave > "$GPU_GOVENOR_DIR/governor" 2>/dev/null
+}
+
+rg552_sleep_clocks_up() {
+    [ -f "$RG552_SLEEP_CLOCKS" ] || return 0
+    while read -r _kind _a _b; do
+        case "$_kind" in
+            online) [ "$_b" = 1 ] && echo 1 > "/sys/devices/system/cpu/cpu$_a/online" 2>/dev/null ;;
+            # max first: the min may not go above it.
+            freq)   echo "$_b" > "$CPU_0_DIR/scaling_max_freq" 2>/dev/null
+                    echo "$_a" > "$CPU_0_DIR/scaling_min_freq" 2>/dev/null ;;
+            gpu)    echo "$_a" > "$GPU_GOVENOR_DIR/governor" 2>/dev/null ;;
+        esac
+    done < "$RG552_SLEEP_CLOCKS"
+    rm -f "$RG552_SLEEP_CLOCKS"
+}
 RG552_SLEEP_GRABS="/tmp/rg552_sleep_grabs"
 
 device_uses_pseudo_sleep() {
@@ -194,6 +233,7 @@ device_enter_sleep() {
         cat "$RG552_POWER_LED" > "$RG552_SLEEP_LED" 2>/dev/null
         echo 0 > "$RG552_POWER_LED" 2>/dev/null
     fi
+    rg552_sleep_clocks_down
 }
 
 device_exit_sleep() {
@@ -212,6 +252,8 @@ device_exit_sleep() {
         fi
         kill $(cat "$RG552_SLEEP_GRABS" 2>/dev/null) 2>/dev/null
         rm -f "$RG552_SLEEP_GRABS"
+        # Clocks back before anything resumes.
+        rg552_sleep_clocks_up
         _sid="$(cat /tmp/last_port_sid 2>/dev/null)"
         [ -n "$_sid" ] && kill -CONT -"$_sid" 2>/dev/null
         killall -q -CONT $RG552_SLEEP_STOP 2>/dev/null
@@ -306,12 +348,13 @@ rg552_boot_android_next() {
 #####   MENU CPU MODE   #####
   ##########################
 
-# In the menu SMART runs PyUI on the four A53s (RG552.cfg parks the A72s). It
-# would put them on CPU_SMART_GOVENOR, ondemand; the menu gets the BSP's
-# interactive governor instead: Rockchip's Android tuning, which goes straight
-# to its high speed under load and boosts the A53s to 1.2 GHz for half a second
-# on every button press or touch. Same frequency limits as SMART; games keep
-# spruce's SMART as it is. (The A72 cluster is set too, for when it is online.)
+# In the menu SMART runs PyUI on the four A53s (or all six cores with Battery
+# Settings > CPU cores at "Full", RG552.cfg). SMART would put the A53s on
+# CPU_SMART_GOVENOR, ondemand, and the A72s on conservative; the menu gets the
+# BSP's interactive governor on both instead: Rockchip's Android tuning, which
+# goes straight to its high speed under load and boosts the A53s to 1.2 GHz for
+# half a second on every button press or touch. Same frequency limits as SMART;
+# games keep spruce's SMART as it is.
 RG552_MENU_GOVERNOR="interactive"
 
 rg552_menu_governor() {
