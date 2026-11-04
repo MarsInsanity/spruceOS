@@ -249,8 +249,16 @@ case "$PLATFORM" in
         export SDL_VIDEODRIVER=kmsdrm
         export SDL_AUDIODRIVER=alsa
 
+        # RG552 (RK3399): two Cortex-A72s beside four A53s, and this kernel's
+        # scheduler does not favour the big cores, so PyUI's main thread would
+        # wander onto an A53. Keep it on the A72s (cpu4-5).
+        PYUI_CPUS=""
+        if [ "$PLATFORM" = "RG552" ] && command -v taskset >/dev/null 2>&1; then
+            PYUI_CPUS="taskset -c 4,5"
+        fi
+
         log_message "Starting PyUI on $PLATFORM"
-        /mnt/SDCARD/spruce/flip/bin/MainUI \
+        $PYUI_CPUS /mnt/SDCARD/spruce/flip/bin/MainUI \
             /mnt/SDCARD/App/PyUI/main-ui/mainui.py \
             -device "$(device_names | head -n 1)" \
             -logDir /mnt/SDCARD/Saves/spruce \

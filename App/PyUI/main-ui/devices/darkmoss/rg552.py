@@ -105,6 +105,11 @@ class Rg552(DarkmossDevice):
     def get_scale_factor(self):
         return self.SCALE
 
+    # The canvas is turned and scaled 1.5x onto the panel in one draw: the default
+    # path makes, fills and frees a 768x1280 render target every frame first.
+    def rotate_canvas_in_one_pass(self):
+        return True
+
     # HDMI out is not supported: the system SDL rotates every output ROT_270
     # and SDL's display 0 is the DSI panel, so an HDMI layout would only draw an
     # unrotated 1920x1080 frame onto the panel.
