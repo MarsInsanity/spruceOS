@@ -306,12 +306,13 @@ rg552_boot_android_next() {
 #####   MENU CPU MODE   #####
   ##########################
 
-# In the menu SMART runs PyUI on the four A53s (RG552.cfg parks the A72s). It
-# would put them on CPU_SMART_GOVENOR, ondemand; the menu gets the BSP's
-# interactive governor instead: Rockchip's Android tuning, which goes straight
-# to its high speed under load and boosts the A53s to 1.2 GHz for half a second
-# on every button press or touch. Same frequency limits as SMART; games keep
-# spruce's SMART as it is. (The A72 cluster is set too, for when it is online.)
+# In the menu SMART runs PyUI on the four A53s (or all six cores with Battery
+# Settings > CPU cores at "Full", RG552.cfg). SMART would put the A53s on
+# CPU_SMART_GOVENOR, ondemand, and the A72s on conservative; the menu gets the
+# BSP's interactive governor on both instead: Rockchip's Android tuning, which
+# goes straight to its high speed under load and boosts the A53s to 1.2 GHz for
+# half a second on every button press or touch. Same frequency limits as SMART;
+# games keep spruce's SMART as it is.
 RG552_MENU_GOVERNOR="interactive"
 
 rg552_menu_governor() {

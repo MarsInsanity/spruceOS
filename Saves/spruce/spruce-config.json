@@ -34,6 +34,16 @@
                 ],
                 "selected": "4"
             },
+            "rg552CpuCores": {
+                "devices": ["RG552"],
+                "display": "CPU cores",
+                "description": "Battery: 4 A53s (H700 class); Full: all 6",
+                "options": [
+                    "Battery",
+                    "Full"
+                ],
+                "selected": "Battery"
+            },
             "wakeOnLidOpen": {
                 "devices": ["ANBERNIC_RGXX_LID_WAKE"],
                 "display": "Wake on lid open",
