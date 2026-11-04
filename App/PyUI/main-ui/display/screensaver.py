@@ -119,6 +119,8 @@ class ScreenSaver:
             sdl2.SDL_DestroyTexture(scaled_canvas)
         elif Device.get_device().screen_rotation() == 0:
             sdl2.SDL_RenderCopy(Display.renderer.sdlrenderer, Display.render_canvas, None, None)
+        elif Device.get_device().rotate_canvas_in_one_pass():
+            Display.copy_rotated_canvas_to_window()
         else:
             rotated_texture = Display.rotate_canvas()
             if rotated_texture is not None:

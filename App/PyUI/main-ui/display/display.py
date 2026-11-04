@@ -1154,6 +1154,30 @@ class Display:
         return rotated_texture
 
 
+    @classmethod
+    def copy_rotated_canvas_to_window(cls):
+        """Turns and scales the canvas onto the window in a single draw, for devices
+        that opt in with Device.rotate_canvas_in_one_pass(). rotate_canvas() makes a
+        render target the size of the canvas, draws into it and frees it on every
+        frame; on a large panel (the RG552's 1920x1152) that allocation and the
+        extra full-canvas pass cost more than the copy. The render target must
+        already be the window."""
+        renderer = cls.renderer.sdlrenderer
+        out_w, out_h = ctypes.c_int(), ctypes.c_int()
+        if sdl2.SDL_GetRendererOutputSize(renderer, ctypes.byref(out_w), ctypes.byref(out_h)) != 0:
+            return
+        w, h = out_w.value, out_h.value
+        angle = Device.get_device().screen_rotation() % 360
+        if angle in (90, 270):
+            # The landscape frame (h x w) centred on the portrait window, then turned
+            # about that centre onto it: the same turn rotate_canvas() makes, scaled.
+            dst = sdl2.SDL_Rect((w - h) // 2, (h - w) // 2, h, w)
+        else:
+            dst = sdl2.SDL_Rect(0, 0, w, h)
+        sdl2.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255)
+        sdl2.SDL_RenderClear(renderer)
+        sdl2.SDL_RenderCopyEx(renderer, cls.render_canvas, None, dst, angle, None, sdl2.SDL_FLIP_NONE)
+
     start = 0
     @classmethod
     def present(cls, fade=False):
@@ -1198,6 +1222,8 @@ class Display:
                 cls.fade_transition(cls.bg_canvas, cls.render_canvas)
             else:
                 sdl2.SDL_RenderCopy(cls.renderer.sdlrenderer, cls.render_canvas, None, None)
+        elif Device.get_device().rotate_canvas_in_one_pass():
+            cls.copy_rotated_canvas_to_window()
         else:
             rotated_texture = cls.rotate_canvas()
             if(rotated_texture is not None):

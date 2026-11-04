@@ -31,6 +31,12 @@ class AbstractDevice(ABC):
     @abstractmethod
     def should_scale_screen(self):
         pass
+
+    def rotate_canvas_in_one_pass(self):
+        """True to turn and scale the canvas straight onto the window in one draw
+        (Display.copy_rotated_canvas_to_window) instead of through a rotated texture
+        made and freed every frame. Only read when screen_rotation() is not 0."""
+        return False
     
     @abstractmethod
     def lumination(self):
