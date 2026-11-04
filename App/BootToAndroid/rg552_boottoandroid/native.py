@@ -5,7 +5,7 @@ eMMC when it does not. dArkMoss's rg552-bootswitch saves the start of each
 loader stage into an unused area of the card and blanks it, then this reboots
 through spruce's normal reboot path, so the device comes up in Android.
 
-Getting back: the "RG552 Boot Switch" app on Android (needs root), or a PC with
+Getting back: the "SpruceOS" app on Android (needs root), or a PC with
 the card in a reader (rg552-bootswitch/README.txt on the card's BOOT partition).
 """
 
@@ -35,7 +35,7 @@ def run():
 
     choice = ListOfOptionsSelectionMenu().get_selected_option_index(
         ["Reboot into Android", "Cancel"],
-        "Boot to Android? To come back, use the RG552 Boot Switch app on Android.",
+        "Boot to Android? To come back, open the SpruceOS app on Android.",
         default_index=1)
     if choice != 0:
         return
