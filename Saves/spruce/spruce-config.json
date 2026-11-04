@@ -44,6 +44,16 @@
                 ],
                 "selected": "Battery"
             },
+            "rg552SleepMode": {
+                "devices": ["RG552"],
+                "display": "Sleep mode",
+                "description": "Deep: suspend, lasts longest; Light: screen off",
+                "options": [
+                    "Light",
+                    "Deep"
+                ],
+                "selected": "Light"
+            },
             "wakeOnLidOpen": {
                 "devices": ["ANBERNIC_RGXX_LID_WAKE"],
                 "display": "Wake on lid open",

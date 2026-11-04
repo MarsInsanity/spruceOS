@@ -122,7 +122,8 @@ class Rg552(DarkmossDevice):
     # ----- power -----
     @staticmethod
     def _battery_dir():
-        """The fuel gauge registers as "bat" on this kernel, not "battery"."""
+        """The supply whose type is Battery: the cw2015 gauge is "bat" on dArkMoss
+        images before v0.2.10 and "battery" from v0.2.10."""
         base = "/sys/class/power_supply"
         try:
             for entry in sorted(os.listdir(base)):
