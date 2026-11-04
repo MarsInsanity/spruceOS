@@ -133,15 +133,21 @@ take_screenshot() {
 #####   SLEEP   #####
   ###################
 
-# Pseudo sleep (oakMOSS's model): the panel goes dark and the session stops
-# until sleep_helper sees the power key, or its own timer powers off. Kernel
-# suspend is not the default here, because on this board it is untested and risky:
-#  - neither SD slot can be power-cycled (no vmmc) and this 4.4 kernel lacks
-#    mainline's "card still at 1.8 V after resume" fixup, so a UHS card can
-#    fail to come back, and TF1 is the root filesystem;
-#  - the RK808's interrupt is wired to GPIO3, which the RK3399 PMU cannot wake
-#    from, so spruce's RTC "power off after N minutes asleep" never fires.
-# `touch /mnt/SDCARD/spruce/flags/rg552_real_sleep.lock` opts into suspend-to-RAM.
+# Battery Settings > Sleep mode (RG552 only). "Light", the default for now, is
+# pseudo sleep (oakMOSS's model): the panel goes dark and the session stops
+# until sleep_helper sees the power key, or its own timer powers off. "Deep" is
+# kernel suspend-to-RAM through systemd: tested on hardware with the fan quiet,
+# Wi-Fi, touch and RetroArch fine after wake, and the RK808's RTC alarm waking
+# it for "Shutdown after sleeping". Still open: neither SD slot can be
+# power-cycled (no vmmc) and this 4.4 kernel lacks mainline's "card still at
+# 1.8 V after resume" fixup, so a card running UHS could fail to come back
+# (TF1 runs at high speed, 3.3 V, on the cards seen so far). The old flag
+# (spruce/flags/rg552_real_sleep.lock) still selects Deep.
+rg552_deep_sleep() {
+    flag_check "rg552_real_sleep" && return 0
+    [ "$(get_config_value '.menuOptions."Battery Settings".rg552SleepMode.selected' "Light")" = "Deep" ]
+}
+
 # Everything a darkmoss session runs in the foreground (PortMaster ports are
 # paused as their own session, from /tmp/last_port_sid).
 RG552_SLEEP_STOP="MainUI ra64.universal ra32.universal retroarch drastic drastic64 $PSP_BIN mupen64plus flycast flycast2024 yabasanshiro scummvm scummvm.64 ffplay dsperate gvu bigpemu pico8_64 pico8_dyn xroar GameTankEmulator OpenBOR_TrimUI OpenBOR_64_mod"
@@ -193,7 +199,7 @@ rg552_sleep_clocks_up() {
 RG552_SLEEP_GRABS="/tmp/rg552_sleep_grabs"
 
 device_uses_pseudo_sleep() {
-    if flag_check "rg552_real_sleep"; then echo "false"; else echo "true"; fi
+    if rg552_deep_sleep; then echo "false"; else echo "true"; fi
 }
 
 # No lid: sleep_helper's pseudo loop takes the power key while this reads "1".
@@ -203,7 +209,7 @@ device_lid_open() {
 
 device_enter_sleep() {
     IDLE_TIMEOUT="$1"
-    if flag_check "rg552_real_sleep"; then
+    if rg552_deep_sleep; then
         log_message "Entering sleep w/ IDLE_TIMEOUT of $IDLE_TIMEOUT"
         save_sleep_info "$IDLE_TIMEOUT" || return 1
         set_wake_alarm "$IDLE_TIMEOUT" "$WAKE_ALARM_PATH" || return 1
@@ -237,7 +243,7 @@ device_enter_sleep() {
 }
 
 device_exit_sleep() {
-    if ! flag_check "rg552_real_sleep"; then
+    if ! rg552_deep_sleep; then
         _raw="$(cat "$RG552_SLEEP_BRIGHTNESS" 2>/dev/null)"
         rm -f "$RG552_SLEEP_BRIGHTNESS"
         case "$_raw" in
