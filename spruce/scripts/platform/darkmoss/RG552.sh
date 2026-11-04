@@ -146,6 +146,11 @@ take_screenshot() {
 # paused as their own session, from /tmp/last_port_sid).
 RG552_SLEEP_STOP="MainUI ra64.universal ra32.universal retroarch drastic drastic64 $PSP_BIN mupen64plus flycast flycast2024 yabasanshiro scummvm scummvm.64 ffplay dsperate gvu bigpemu pico8_64 pico8_dyn xroar GameTankEmulator OpenBOR_TrimUI OpenBOR_64_mod"
 RG552_SLEEP_BRIGHTNESS="/tmp/rg552_sleep_brightness"
+# The green LED by Start (dts battery_green, on from boot). A real suspend
+# turns it off (gpio-leds without retain-state-suspended); pseudo sleep does
+# the same by hand and puts back what it was.
+RG552_POWER_LED="/sys/class/leds/battery_green/brightness"
+RG552_SLEEP_LED="/tmp/rg552_sleep_led"
 RG552_SLEEP_GRABS="/tmp/rg552_sleep_grabs"
 
 device_uses_pseudo_sleep() {
@@ -185,6 +190,10 @@ device_enter_sleep() {
     [ -n "$_sid" ] && kill -STOP -"$_sid" 2>/dev/null
     cat "$DEVICE_BACKLIGHT_PATH" > "$RG552_SLEEP_BRIGHTNESS" 2>/dev/null
     echo 0 > "$DEVICE_BACKLIGHT_PATH" 2>/dev/null
+    if [ -e "$RG552_POWER_LED" ]; then
+        cat "$RG552_POWER_LED" > "$RG552_SLEEP_LED" 2>/dev/null
+        echo 0 > "$RG552_POWER_LED" 2>/dev/null
+    fi
 }
 
 device_exit_sleep() {
@@ -195,6 +204,12 @@ device_exit_sleep() {
             ''|0|*[!0-9]*) apply_backlight "$(get_backlight_level)" ;;
             *) echo "$_raw" > "$DEVICE_BACKLIGHT_PATH" 2>/dev/null ;;
         esac
+        if [ -f "$RG552_SLEEP_LED" ]; then
+            _led="$(cat "$RG552_SLEEP_LED" 2>/dev/null)"
+            rm -f "$RG552_SLEEP_LED"
+            case "$_led" in ''|*[!0-9]*) _led=1 ;; esac
+            echo "$_led" > "$RG552_POWER_LED" 2>/dev/null
+        fi
         kill $(cat "$RG552_SLEEP_GRABS" 2>/dev/null) 2>/dev/null
         rm -f "$RG552_SLEEP_GRABS"
         _sid="$(cat /tmp/last_port_sid 2>/dev/null)"
