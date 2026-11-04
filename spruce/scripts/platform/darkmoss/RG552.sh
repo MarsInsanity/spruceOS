@@ -94,6 +94,41 @@ device_low_battery_shutdown_ok() {
     return 0
 }
 
+  #######################
+#####   SCREENSHOTS   #####
+  #######################
+
+# kmsgrab captures the scanout, the 1152x1920 portrait buffer: PyUI and the
+# system SDL both draw the landscape picture onto it turned 270 degrees
+# clockwise, so turn the capture 90 degrees clockwise back (transpose=1), as
+# E5Plus.sh does the other way for its ROT_90 panel. Game Switcher thumbnails
+# (button_actions.sh capture_screen) and the screenshot hotkey both land here.
+# Always on: HDMI is not supported here (RG552.cfg).
+take_screenshot() {
+    screenshot_path="$1"
+    [ -n "$screenshot_path" ] || return 1
+    _ff=""
+    for _c in /mnt/SDCARD/spruce/bin/ffmpeg /usr/bin/ffmpeg; do
+        [ -x "$_c" ] && { _ff="$_c"; break; }
+    done
+    [ -n "$_ff" ] || {
+        log_message "take_screenshot: no ffmpeg with kmsgrab available"
+        return 1
+    }
+    mkdir -p "$(dirname "$screenshot_path")" 2>/dev/null
+
+    if timeout 15 "$_ff" -hide_banner -loglevel error \
+        -f kmsgrab -i - \
+        -vf "hwdownload,format=bgr0,format=rgba,transpose=1" \
+        -frames:v 1 -update 1 -y "$screenshot_path" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    rm -f "$screenshot_path" 2>/dev/null
+    log_message "take_screenshot: kmsgrab capture failed"
+    return 1
+}
+
   ###################
 #####   SLEEP   #####
   ###################
