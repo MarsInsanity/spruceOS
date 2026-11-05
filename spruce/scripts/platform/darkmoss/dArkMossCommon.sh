@@ -267,8 +267,19 @@ device_get_hw_epoch() {
 trigger_device_sleep() {
     systemctl suspend >/dev/null 2>&1 || return 1
     sleep 2
-    while systemctl is-active --quiet systemd-suspend.service; do
-        sleep 0.5
+    # systemd-suspend.service is oneshot: it stays "activating" for the whole
+    # suspend, the system-sleep hooks after resume included, and is never
+    # "active", so is-active returned at once. Until it finishes, logind
+    # refuses any new power action ("Action suspend already in progress"): a
+    # timed wake that went straight on to save_poweroff had its poweroff
+    # refused and was left with the frontend gone and the backlight on.
+    # Capped at 30 s of waiting so a stuck hook cannot hang the wake.
+    _n=0
+    while [ "$_n" -lt 60 ]; do
+        case "$(systemctl show -p ActiveState --value systemd-suspend.service 2>/dev/null)" in
+            activating|active|deactivating) sleep 0.5; _n=$((_n + 1)) ;;
+            *) break ;;
+        esac
     done
 }
 
@@ -700,13 +711,31 @@ device_needs_strict_unmount() {
     return 1
 }
 
-device_run_reboot_cmd() {
-    systemctl reboot
+# Through systemd, so /mnt/SDCARD is unmounted cleanly. By the time these run,
+# save_poweroff has stopped the frontend, so a refused request leaves a black
+# screen with the backlight on. logind refuses one while another power action
+# is still finishing ("Action suspend already in progress"), so retry for a
+# while, then start the target directly: the same clean shutdown, without
+# logind's check (what systemctl itself does when logind is not there).
+darkmoss_power_action() {
+    _n=0
+    while :; do
+        _out="$(systemctl "$1" 2>&1)" && return 0
+        _n=$((_n + 1))
+        log_message "$PLATFORM: systemctl $1 refused (try $_n): $_out"
+        [ "$_n" -ge 10 ] && break
+        sleep 1
+    done
+    log_message "$PLATFORM: starting $1.target directly"
+    systemctl start "$1.target" --job-mode=replace-irreversibly --no-block
 }
 
-# Through systemd like reboot, so /mnt/SDCARD is unmounted cleanly.
+device_run_reboot_cmd() {
+    darkmoss_power_action reboot
+}
+
 run_poweroff_cmd() {
-    systemctl poweroff
+    darkmoss_power_action poweroff
 }
 
 # save_poweroff.sh kills runtime.sh, which is spruce-launch.service's MainPID.
