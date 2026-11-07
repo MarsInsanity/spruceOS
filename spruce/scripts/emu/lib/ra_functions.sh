@@ -8,6 +8,8 @@
 #   EMU_DIR
 #   ROM_FILE
 #   EMU_JSON_PATH
+#   DISPLAY_WIDTH
+#   DISPLAY_HEIGHT
 #   DISPLAY_ASPECT_RATIO
 #   LD_LIBRARY_PATH
 #
@@ -264,6 +266,10 @@ export_spruce_theme_dir() {
 
 run_retroarch() {
 	prepare_ra_config 2>/dev/null
+	if [ "$CORE" = "pokedaisy" ]; then
+		seed_pokedaisy_ini 2>/dev/null
+		set_pokedaisy_panel
+	fi
 
 	# Apply per-game or system-wide RA build selection. The binary names are
 	# device-overridable because "64-bit" is not always the universal build -
@@ -276,6 +282,8 @@ run_retroarch() {
 	esac
 
 	use_igm="$(get_config_value '.menuOptions."In-Game Menu Settings".raInGameMenu.selected' "True")"
+	simple_mode="$(jq -r '(.simpleMode // false) or (.kidMode // false)' "$SYSTEM_JSON" 2>/dev/null)"
+	[ "$simple_mode" = "true" ] && use_igm="True"
 
 	# Sync IGM flag file with config setting
 	IGM_FLAG="/mnt/SDCARD/RetroArch/IGM.txt"
@@ -284,8 +292,18 @@ run_retroarch() {
 	else
 		rm -f "$IGM_FLAG"
 	fi
-	[ -f /mnt/SDCARD/RetroArch/igm_items.json ] ||
+	IGM_ITEMS="/mnt/SDCARD/RetroArch/igm_items.json"
+	[ -f "$IGM_ITEMS" ] ||
 		/mnt/SDCARD/spruce/scripts/applySetting/igmItems.sh --now
+	# Simple and Kid Mode hide the RetroArch Menu entry; the user's list waits in .simple.
+	if [ "$simple_mode" = "true" ]; then
+		[ -f "$IGM_ITEMS.simple" ] || cp -f "$IGM_ITEMS" "$IGM_ITEMS.simple"
+		_items="$(jq -c '[.items[] | select(. != "retroarch")]' "$IGM_ITEMS.simple" 2>/dev/null)"
+		case "$_items" in ""|"[]") _items='["resume","save","load","reset","exit"]' ;; esac
+		echo "{\"items\":$_items}" > "$IGM_ITEMS.tmp" && mv -f "$IGM_ITEMS.tmp" "$IGM_ITEMS"
+	elif [ -f "$IGM_ITEMS.simple" ]; then
+		mv -f "$IGM_ITEMS.simple" "$IGM_ITEMS"
+	fi
 
 	export_spruce_theme_dir
 
@@ -610,4 +628,43 @@ save_custom_n64_controller_profile() {
 	esac
 
 	cp -f "${REMAP_DIR}/${core_name}/${core_name}.rmp" "$REMAP_BACKUP"
+}
+
+seed_pokedaisy_ini() {
+	src="/mnt/SDCARD/Emu/GBA/pokedaisy/default.ini"
+	dst="/mnt/SDCARD/Saves/saves/PokeDaisy/pokedaisy/settings.ini"
+	if [ -f "$src" ] && [ ! -f "$dst" ]; then
+		mkdir -p "$(dirname "$dst")" 2>/dev/null
+		cp "$src" "$dst" && log_message "Seeded PokeDaisy settings.ini from $src to $dst"
+	fi
+}
+
+set_pokedaisy_panel() {
+	case "${DISPLAY_WIDTH:-}" in
+		""|*[!0-9]*) log_message "Cannot set PokeDaisy panel: invalid DISPLAY_WIDTH '$DISPLAY_WIDTH'"; return 1 ;;
+	esac
+	case "${DISPLAY_HEIGHT:-}" in
+		""|*[!0-9]*) log_message "Cannot set PokeDaisy panel: invalid DISPLAY_HEIGHT '$DISPLAY_HEIGHT'"; return 1 ;;
+	esac
+
+	opt_file="/mnt/SDCARD/RetroArch/.retroarch/config/PokeDaisy/PokeDaisy.opt"
+	if [ ! -f "$opt_file" ]; then
+		log_message "Cannot set PokeDaisy panel: options file not found at $opt_file"
+		return 1
+	fi
+	panel="${DISPLAY_WIDTH}x${DISPLAY_HEIGHT}"
+	if grep -Fxq "pokedaisy_panel = \"$panel\"" "$opt_file"; then
+		return 0
+	fi
+	if ! grep -q '^pokedaisy_panel[[:space:]]*=' "$opt_file"; then
+		log_message "Cannot set PokeDaisy panel: setting not found in $opt_file"
+		return 1
+	fi
+
+	if sed -i "s|^pokedaisy_panel[[:space:]]*=.*|pokedaisy_panel = \"$panel\"|" "$opt_file"; then
+		log_message "Set PokeDaisy panel to $panel"
+	else
+		log_message "Failed to set PokeDaisy panel in $opt_file"
+		return 1
+	fi
 }
