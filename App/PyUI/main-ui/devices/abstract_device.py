@@ -253,6 +253,9 @@ class AbstractDevice(ABC):
     @staticmethod  
     def supports_analog_calibration(self):
         pass
+
+    def supports_touch(self):
+        return False
         
     @staticmethod  
     def supports_image_resizing(self):
