@@ -1,5 +1,6 @@
 import os
 import threading
+import time
 
 from controller.controller_inputs import ControllerInput
 from controller.key_state import KeyState
@@ -72,19 +73,61 @@ class Rg552(DarkmossDevice):
     def supports_touch(self):
         return self.touch_watcher is not None
 
+    # How long to keep looking for the GT927 when PyUI starts before it is there.
+    TOUCH_WAIT_SECONDS = 30
+
+    @staticmethod
+    def _input_devices():
+        """"event3: Goodix Capacitive TouchScreen, event1: ..." for the log."""
+        seen = []
+        try:
+            entries = sorted(os.listdir("/sys/class/input"))
+        except OSError:
+            return "(no /sys/class/input)"
+        for entry in entries:
+            if not entry.startswith("event"):
+                continue
+            try:
+                with open(f"/sys/class/input/{entry}/device/name") as f:
+                    seen.append(f"{entry}: {f.read().strip()}")
+            except OSError:
+                seen.append(f"{entry}: ?")
+        return ", ".join(seen) or "(none)"
+
     def _start_touch_watcher(self):
+        threading.Thread(target=self._run_touch_watcher, daemon=True).start()
+
+    def _run_touch_watcher(self):
+        """Find the touchscreen, waiting for it a while if it is not there yet (rather than
+        giving up on touch for the whole session), then poll it. Logs the input devices seen
+        either way, so a touchscreen that is missing or misnamed shows in pyui.log."""
+        logger = PyUiLogger.get_logger()
+        deadline = time.monotonic() + self.TOUCH_WAIT_SECONDS
         path = self._find_touch_node()
+        while not path and time.monotonic() < deadline:
+            time.sleep(1)
+            path = self._find_touch_node()
+        devices = self._input_devices()
         if not path:
-            PyUiLogger.get_logger().warning("RG552: no touchscreen node found; touch off")
+            logger.warning(f"RG552: no touchscreen node after {self.TOUCH_WAIT_SECONDS} s; touch off. "
+                           f"Input devices: {devices}")
             return
+        logger.info(f"RG552: touchscreen {path}; input devices: {devices}")
         try:
             from controller.touch_watcher import TouchWatcher
-            self.touch_watcher = TouchWatcher(path, self)
+            watcher = TouchWatcher(path, self)
         except Exception as e:
-            PyUiLogger.get_logger().error(f"RG552: touch watcher failed on {path}: {e}")
-            self.touch_watcher = None
+            logger.exception(f"RG552: touch watcher failed on {path}: {e}")
             return
-        threading.Thread(target=self.touch_watcher.poll, daemon=True).start()
+        if watcher.fd is None:
+            logger.warning(f"RG552: could not open {path} yet; the watcher keeps trying")
+        self.touch_watcher = watcher
+        try:
+            watcher.poll()
+        except Exception as e:
+            # A daemon thread dies silently: say so, or touch just stops with nothing logged.
+            logger.exception(f"RG552: touch watcher on {path} stopped: {e}")
+            self.touch_watcher = None
 
     # ----- display -----
     def screen_width(self):
