@@ -46,12 +46,12 @@ for _cfg in /mnt/SDCARD/Saves/spruce/spruce-config.json /mnt/SDCARD/Saves/spruce
 done
 
 # GB, GBC and GBA split the Minis off into Emulator_MiyooMini (no pokedaisy):
-# give it the core the user had picked under Emulator.
+# give it the cores the user had picked under Emulator.
 for _sys in GB GBC GBA; do
     _cfg="/mnt/SDCARD/Saves/spruce/emu_backups/$_sys.json"
     [ -f "$_cfg" ] || continue
     jq -e '.menuOptions.Emulator_MiyooMini' "$_cfg" >/dev/null 2>&1 && continue
-    jq '.menuOptions.Emulator_MiyooMini.selected = .menuOptions.Emulator.selected' "$_cfg" > "$_cfg.tmp" &&
+    jq '.menuOptions.Emulator_MiyooMini = (.menuOptions.Emulator | {selected, overrides})' "$_cfg" > "$_cfg.tmp" &&
         mv -f "$_cfg.tmp" "$_cfg" && log_message "$_sys: Emulator_MiyooMini set from Emulator"
 done
 
@@ -196,6 +196,16 @@ if [ ! -f "$_ra_touch_done" ]; then
     touch "$_ra_touch_done"
 fi
 
+PX2_RA_CFG="/mnt/SDCARD/Saves/ra-configs/retroarch-Pixel2.cfg"
+if [ -f $PX2_RA_CFG ] ; then
+    sed -i -e 's/^audio_driver = "alsa"$/audio_driver = "pipewire"/' $PX2_RA_CFG
+    log_message "4.5.7: Pixel 2 retroarch audio driver changed to pipewire."
+fi
+
+# Update TWIGUI partition type, fixes mounting issue on macOS
+if [ "$PLATFORM" = "Pixel2" ]; then
+    sfdisk --part-type /dev/mmcblk0 3 0x0c
+fi
 
 # -------------------- UPGRADE COMPLETION --------------------
 # Check if the update was successful
