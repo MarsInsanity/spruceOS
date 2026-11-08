@@ -98,6 +98,9 @@ def initialize_device(device, main_ui_mode):
     elif "ANBERNIC_RG351P" == device:
         from devices.darkmoss.rg351p import RG351P
         Device.init(RG351P(device))
+    elif "GKD_PIXEL2_DARKMOSS" == device:
+        from devices.darkmoss.pixel2 import Pixel2DarkMoss
+        Device.init(Pixel2DarkMoss(device))
     elif "GKD_PIXEL2" == device:
         from devices.gkd.gkd_pixel2 import GKDPixel2
         Device.init(GKDPixel2(device, main_ui_mode))
