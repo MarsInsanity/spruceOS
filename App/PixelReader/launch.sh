@@ -46,7 +46,7 @@ else
 			# .gptk on the wrong physical key.
 			export_sdl_gamecontroller_map positional
 			;;
-        "darkmoss"|"oakmoss")
+        "darkmoss"|"oakmoss"|"lightmoss")
 			export LD_LIBRARY_PATH=/mnt/SDCARD/spruce/h700/lib64:$LD_LIBRARY_PATH
 			;;
 	esac

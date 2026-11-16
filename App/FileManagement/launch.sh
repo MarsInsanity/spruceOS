@@ -47,7 +47,7 @@ if [ -f "$HOME/config.ini" ]; then
 fi
 
 case "$PLATFORM_FAMILY" in
-    "darkmoss")
+    "darkmoss"|"lightmoss")
         swap_x_and_y_buttons
         export VTREE_GLES=1
         ;;

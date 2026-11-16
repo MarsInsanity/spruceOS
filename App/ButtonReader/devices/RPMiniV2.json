@@ -1,0 +1,169 @@
+{
+  "schema": "spruce-button-reader-device/1",
+  "platform": "RPMiniV2",
+  "name": "Retroid Pocket Mini V2",
+  "brand": "Retroid",
+  "models": [
+    "Retroid Pocket Mini V2"
+  ],
+  "family": "lightmoss",
+  "base": "LightMoss",
+  "soc": "Qualcomm Snapdragon 865 (SM8250)",
+  "arch": "aarch64",
+  "identify": "helperFunctions.sh: /etc/os-release OS_NAME=LIGHTMOSS, SPRUCE_PLATFORM=RPMiniV2 (checked before /proc/cpuinfo)",
+  "cfg": "spruce/scripts/platform/lightmoss/RPMiniV2.cfg",
+  "spruce_ref": "0dccf5276b",
+  "face_print": "nintendo",
+  "sources": {
+    "pad": {
+      "kind": "joypad",
+      "node": "Retroid Pocket Gamepad",
+      "by_path": null,
+      "from": "cfg",
+      "note": "the MCU behind ROCKNIX's retroid serdev driver; found by name"
+    },
+    "power": {
+      "kind": "pmic",
+      "node": "pm8941_pwrkey",
+      "from": "device tree (pon_pwrkey)"
+    },
+    "volume": {
+      "kind": "uinput",
+      "node": "LightMoss Volume Keys",
+      "from": "LightMoss lightmoss-volkeys"
+    }
+  },
+  "controls": {
+    "BOTTOM": {
+      "code": "1 304",
+      "source": "pad",
+      "from": "cfg"
+    },
+    "RIGHT": {
+      "code": "1 305",
+      "source": "pad",
+      "from": "cfg"
+    },
+    "TOP": {
+      "code": "1 307",
+      "source": "pad",
+      "from": "cfg"
+    },
+    "LEFT": {
+      "code": "1 308",
+      "source": "pad",
+      "from": "cfg"
+    },
+    "DPAD_UP": {
+      "code": "1 544",
+      "source": "pad",
+      "from": "cfg"
+    },
+    "DPAD_DOWN": {
+      "code": "1 545",
+      "source": "pad",
+      "from": "cfg"
+    },
+    "DPAD_LEFT": {
+      "code": "1 546",
+      "source": "pad",
+      "from": "cfg"
+    },
+    "DPAD_RIGHT": {
+      "code": "1 547",
+      "source": "pad",
+      "from": "cfg"
+    },
+    "L1": {
+      "code": "1 310",
+      "source": "pad",
+      "from": "cfg"
+    },
+    "R1": {
+      "code": "1 311",
+      "source": "pad",
+      "from": "cfg"
+    },
+    "L2": {
+      "code": "1 312",
+      "source": "pad",
+      "from": "cfg"
+    },
+    "R2": {
+      "code": "1 313",
+      "source": "pad",
+      "from": "cfg"
+    },
+    "L3": {
+      "code": "1 317",
+      "source": "pad",
+      "from": "cfg"
+    },
+    "R3": {
+      "code": "1 318",
+      "source": "pad",
+      "from": "cfg"
+    },
+    "SELECT": {
+      "code": "1 314",
+      "source": "pad",
+      "from": "cfg"
+    },
+    "START": {
+      "code": "1 315",
+      "source": "pad",
+      "from": "cfg"
+    },
+    "MENU": {
+      "code": "1 316",
+      "source": "pad",
+      "from": "cfg"
+    },
+    "POWER": {
+      "code": "1 116",
+      "source": "power",
+      "from": "cfg"
+    },
+    "LEFT_STICK": {
+      "x": "3 0",
+      "y": "3 1",
+      "source": "pad",
+      "from": "cfg",
+      "note": "ABS_X/ABS_Y"
+    },
+    "RIGHT_STICK": {
+      "x": "3 3",
+      "y": "3 4",
+      "source": "pad",
+      "from": "cfg",
+      "note": "ABS_RX/ABS_RY, as ROCKNIX's retroid driver reports them"
+    },
+    "VOL_UP": {
+      "code": "1 115",
+      "source": "volume",
+      "from": "cfg"
+    },
+    "VOL_DOWN": {
+      "code": "1 114",
+      "source": "volume",
+      "from": "cfg"
+    }
+  },
+  "absent": {
+    "HOME": "cfg B_HOME=DOESNT_EXIST",
+    "FN_SWITCH": "none",
+    "FN_LEFT": "none",
+    "FN_RIGHT": "none",
+    "LID": "none"
+  },
+  "evidence": [
+    "spruce/scripts/platform/lightmoss/RPMiniV2.cfg",
+    "spruce/scripts/platform/lightmoss/RPMiniV2.sh",
+    "ROCKNIX SM8250 0008-retroid-gamepad.patch (keymap) and sm8250-retroidpocket-common.dtsi (keys)"
+  ],
+  "notes": [
+    "RPMiniV2.cfg is written from ROCKNIX's gamepad driver and device tree and LightMoss's sources, not read off a running unit: every code here is cfg-level, not measured.",
+    "L2/R2 are analog on this pad; LightMoss's kernel also reports them as BTN_TL2/BTN_TR2 past half travel, which is what these codes are.",
+    "The volume rocker's two keys come from two kernel devices (gpio-keys, the PMIC's resin); LightMoss merges them into one node, \"LightMoss Volume Keys\"."
+  ]
+}

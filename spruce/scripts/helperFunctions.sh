@@ -40,6 +40,12 @@ if [ -e /usr/magicx ]; then
         *)      export PLATFORM="Zero28" ;;
     esac
     export PLATFORM_FAMILY="oakmoss"
+# LightMoss (github.com/MarsInsanity/LightMoss) on a board spruce has no CPU case for: it stamps
+# its platform into os-release, as dArkMoss does. Decided before cpuinfo: the Retroid Pocket Mini
+# V2's SM8250 shares part ids with SoCs below (its A55s are 0xd05, the RK3566's).
+elif grep -q '^OS_NAME="LIGHTMOSS"' /etc/os-release 2>/dev/null; then
+    export PLATFORM="$(sed -n 's/^SPRUCE_PLATFORM="\(.*\)"/\1/p' /etc/os-release 2>/dev/null)"
+    export PLATFORM_FAMILY="lightmoss"
 else
     INFO=$(cat /proc/cpuinfo 2> /dev/null)
     case $INFO in
@@ -173,6 +179,7 @@ device_names() {
         G350)             echo "G350";    echo "DARKMOSS" ;;
         V10)              echo "POWKIDDY_V10"; echo "DARKMOSS" ;;
         Pixel2DarkMoss)   echo "GKD_PIXEL2_DARKMOSS"; echo "DARKMOSS" ;;
+        RPMiniV2)         echo "RETROID_POCKET_MINI_V2"; echo "DARKMOSS" ;;
         Zero28)           echo "MAGICX_ZERO28"; echo "OAKMOSS_A133P" ;;
         Zero40)           echo "MAGICX_ZERO40"; echo "OAKMOSS_A133P" ;;
         XU20)             echo "MAGICX_XU20";   echo "OAKMOSS_A133P" ;;

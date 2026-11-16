@@ -221,7 +221,7 @@ case "$PLATFORM" in
 ############################################################
 # Rockchip RK3566 or RK3326 devices, under dArkMoss
 ############################################################
-    "RGB30" | "RGB20SX" | "A10Mini" | "A10MiniV4" | "XUMiniM" | "G350" | "V10" | "RG353M" | "E5Plus" | "Pixel2DarkMoss" )
+    "RGB30" | "RGB20SX" | "A10Mini" | "A10MiniV4" | "XUMiniM" | "G350" | "V10" | "RG353M" | "E5Plus" | "Pixel2DarkMoss" | "RPMiniV2" )
         # The base is dArkMoss - Debian trixie, glibc 2.41 - not the MossySpruce
         # this block used to name. It ships libdrm, a Mali Bifrost G52 blob that
         # libEGL/libGLESv2/libgbm all symlink to, and SDL2 2.32.4 with a KMSDRM
@@ -254,10 +254,15 @@ case "$PLATFORM" in
         export SDL_VIDEODRIVER=kmsdrm
         export SDL_AUDIODRIVER=alsa
 
+        # LightMoss boards (RPMiniV2) have no Python device class: their cfg sets
+        # PYUI_ENV_DEVICE=true, and the env-driven ENV_VAR device reads them.
+        DEVICE="$(device_names | head -n 1)"
+        [ "$PYUI_ENV_DEVICE" = "true" ] && DEVICE="ENV_VAR"
+
         log_message "Starting PyUI on $PLATFORM"
         /mnt/SDCARD/spruce/flip/bin/MainUI \
             /mnt/SDCARD/App/PyUI/main-ui/mainui.py \
-            -device "$(device_names | head -n 1)" \
+            -device "$DEVICE" \
             -logDir /mnt/SDCARD/Saves/spruce \
             -pyUiConfig /mnt/SDCARD/App/PyUI/py-ui-config.json \
             -cfwConfig /mnt/SDCARD/Saves/spruce/spruce-config.json  "$@"
