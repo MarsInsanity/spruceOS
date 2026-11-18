@@ -221,6 +221,16 @@ up_to_date_exit() {
 ##### MAIN EXECUTION #####
 
 start_pyui_message_writer
+
+# A platform cfg can rule this updater out: on the Mini V2 it would install
+# upstream spruce over the LightMoss fork. Say where updates come from instead.
+if [ -n "$SPRUCE_OTA_DISABLED" ]; then
+    log_message "OTA: spruce's updater is off on $PLATFORM"
+    display_image_and_text "$IMAGE_PATH" 35 25 "$SPRUCE_OTA_DISABLED" 75
+    sleep 10
+    exit 0
+fi
+
 display_image_and_text "$IMAGE_PATH" 35 25 "Checking for updates..." 75
 
 # twinkle them lights
