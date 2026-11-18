@@ -10,6 +10,11 @@
 # bluez-alsa 5 has bluealsad and bluealsactl; its ALSA plugin is 64-bit only,
 # so 32-bit programs cannot play to a headset.
 
+# bluetooth.sh boot rewrites $HOME/.asoundrc in the background while PyUI
+# starts: asound-setup.sh writes it aside and renames it into place.
+# shellcheck disable=SC2034 # read by asound-setup.sh
+ASOUND_WRITE_ATOMIC=1
+
 lightmoss_bt_controller() {
     for _hci in /sys/class/bluetooth/hci*; do
         [ -e "$_hci" ] && return 0

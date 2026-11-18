@@ -28,6 +28,12 @@ mkdir -p "$(dirname "$ASOUND_CONF")"
 # A USB card is played to ahead of a headset: a trusted headset reconnects on its own,
 # while a card has to be plugged in.
 if [ "$ASOUND_SPRUCE_PCMS" = 1 ]; then
+    # A board that sets ASOUND_WRITE_ATOMIC (RPMiniV2) has the file written
+    # aside and renamed into place: bluetooth.sh boot rewrites it in the
+    # background while PyUI starts, and alsa-lib must read the old file or the
+    # new one, never half of one (no spruce_menu, or no spruce_bt).
+    asound_final="$ASOUND_CONF"
+    [ "$ASOUND_WRITE_ATOMIC" = 1 ] && ASOUND_CONF="$asound_final.tmp.$$"
     usb=""
     device_usb_audio_supported && usb_audio_card && usb="$usb_card"
     if [ -n "$usb" ]; then
@@ -61,6 +67,10 @@ pcm.spruce_bt {
 ${BT_PCM_FIXED}}
 pcm.!default "$route"
 EOF
+    if [ "$ASOUND_CONF" != "$asound_final" ]; then
+        mv -f "$ASOUND_CONF" "$asound_final" || rm -f "$ASOUND_CONF"
+        ASOUND_CONF="$asound_final"
+    fi
     # The route is recorded last: usb_audio_watchdog.sh reads it to judge this run.
     if [ "$route" = spruce_usb ]; then
         usb_ctl="$(usb_audio_volume_control "$usb_card")"
