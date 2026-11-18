@@ -213,7 +213,10 @@ export XDG_DATA_HOME="$CONFDIR"
 # runtime speaks, puts "a" on the South button. Without the swap every binding
 # lands one button over.
 case "$PLATFORM" in
-    "Anbernic"*)
+    # RPMiniV2: no "Retroid Pocket Gamepad" for Linux in Godot's own controller
+    # database, and $sdl_controllerconfig (PortMaster's) is never set under
+    # spruce, so Godot used its raw button numbers and L2/R2 came out wrong.
+    "Anbernic"*|RPMiniV2)
         export_sdl_gamecontroller_map positional
         ;;
     *)

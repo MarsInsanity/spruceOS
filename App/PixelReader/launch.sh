@@ -46,8 +46,14 @@ else
 			# .gptk on the wrong physical key.
 			export_sdl_gamecontroller_map positional
 			;;
-        "darkmoss"|"oakmoss"|"lightmoss")
+        "darkmoss"|"oakmoss")
 			export LD_LIBRARY_PATH=/mnt/SDCARD/spruce/h700/lib64:$LD_LIBRARY_PATH
+			;;
+        "lightmoss")
+			export LD_LIBRARY_PATH=/mnt/SDCARD/spruce/h700/lib64:$LD_LIBRARY_PATH
+			# The Retroid pad is in no stock SDL mapping: gptokeyb would see a
+			# plain joystick. Positional, as on h700.
+			export_sdl_gamecontroller_map positional
 			;;
 	esac
 	/mnt/SDCARD/spruce/bin64/gptokeyb -k "reader" -c "./reader.gptk" &
