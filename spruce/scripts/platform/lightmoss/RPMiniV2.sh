@@ -421,6 +421,22 @@ take_screenshot() {
     esac
     log_message "take_screenshot: kmsgrab capture failed ($_why): $(tail -n 3 "$_err" 2>/dev/null | tr '\n' ' ')"
     rm -f "$_err"
+    # A quick failure, not a hang: spruce/bin's ffmpeg is a 32-bit build, so
+    # try spruce's 64-bit kmsgrab (GETFB and mmap, no DMA-BUF sync; it needs
+    # LightMoss's libpng and libdrm), then turn a portrait PNG as above.
+    case "$_rc" in 124|137) return 1 ;; esac
+    _raw="/tmp/rpminiv2_screenshot_raw.png"
+    if [ -x /mnt/SDCARD/spruce/bin64/kmsgrab ] &&
+        timeout -s KILL 3 /mnt/SDCARD/spruce/bin64/kmsgrab "$_raw" </dev/null >/dev/null 2>&1 && [ -s "$_raw" ] &&
+        timeout -s KILL 5 "$_ff" -nostdin -hide_banner -loglevel error -i "$_raw" \
+            -vf "transpose=dir=cclock:passthrough=landscape" \
+            -frames:v 1 -update 1 -y "$screenshot_path" </dev/null >/dev/null 2>&1 &&
+        [ -s "$screenshot_path" ]; then
+        rm -f "$_raw"
+        log_message "take_screenshot: captured with bin64/kmsgrab instead"
+        return 0
+    fi
+    rm -f "$_raw" "$screenshot_path" 2>/dev/null
     return 1
 }
 
