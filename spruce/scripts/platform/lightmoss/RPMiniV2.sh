@@ -19,6 +19,25 @@ device_init() {
     fi
     set_backlight "$(get_backlight_level)"
     darkmoss_wifi_up
+    # A few times over the first seconds: LightMoss's audio service may still be
+    # running ROCKNIX's UCM boot sequence, which sets the gain this undoes.
+    ( for _t in 0 3 5 10; do sleep "$_t"; lightmoss_speaker_gain; done ) &
+}
+
+# The speakers' digital gain (WSA_RX0/RX1 Digital Volume) at 0 dB. ROCKNIX's UCM
+# boots it at +36 dB for PipeWire's software volume to bring down; spruce's
+# softvol "Master" starts at full level, so the first sounds were painfully loud.
+# LightMoss does this itself from 62af605; this covers the images before it.
+lightmoss_speaker_gain() {
+    for _c in /proc/asound/card[0-9]*; do
+        case "$(cat "$_c/id" 2>/dev/null)" in
+            RetroidPocket*)
+                for _e in "WSA_RX0 Digital" "WSA_RX1 Digital"; do
+                    amixer -q -c "${_c##*/card}" sset "$_e" 0dB 2>/dev/null
+                done
+                ;;
+        esac
+    done
 }
 
 # LightMoss updates itself; there is no dArkMoss firmware for this device.
