@@ -5,6 +5,7 @@
 # what is RK3326/RK3566 about it.
 
 . "/mnt/SDCARD/spruce/scripts/platform/darkmoss/dArkMossCommon.sh"
+. "/mnt/SDCARD/spruce/scripts/platform/lightmoss/rpminiv2_leds.sh"
 
 # dArkMossCommon's, without what belongs to Rockchip boards: no rk817 PMIC
 # clean-up (it writes I2C bus 0, address 0x20, which is something else here)
