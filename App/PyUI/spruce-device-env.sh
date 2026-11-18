@@ -57,6 +57,8 @@ spruce_env_inverted() {
 spruce_env_key_mappings() {
     _buttons="A:A B:B X:X Y:Y L1:L1 L2:L2 R1:R1 R2:R2 START:START SELECT:SELECT MENU:MENU HOME:HOME"
     _buttons="$_buttons UP:DPAD_UP DOWN:DPAD_DOWN LEFT:DPAD_LEFT RIGHT:DPAD_RIGHT"
+    # A Back button (B_BACK, where the cfg has one) does what B does.
+    _buttons="$_buttons BACK:B"
     [ "${DEVICE_NUM_ANALOG_STICKS:-0}" -gt 0 ] && _buttons="$_buttons L3:L3 R3:R3"
     for _button in $_buttons; do
         eval "echo \"${_button#*:} \$B_${_button%%:*}\""
