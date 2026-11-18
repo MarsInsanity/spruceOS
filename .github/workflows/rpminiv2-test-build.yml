@@ -44,9 +44,14 @@ jobs:
         id: get_version
         run: |
           BASE="$(< spruce/spruce)"
-          VERSION="${BASE}-RPMiniV2-test-$(date '+%Y%m%d')"
+          # Named like upstream's nightlies (<base>-<YYYYMMDD>, UTC), which is what
+          # spruce's updater compares (runtimeHelper.sh wants exactly 8 digits
+          # after the dash); builds of one day are told apart by commit
+          # (commits_nightly.txt "Last commit:" vs the feed's NIGHTLY_COMMIT).
+          VERSION="${BASE}-$(date -u '+%Y%m%d')"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=RPMiniV2" >> "$GITHUB_OUTPUT"
+          echo "base=${BASE}" >> "$GITHUB_OUTPUT"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           git fetch -q origin Development || true
           {
@@ -161,8 +166,8 @@ jobs:
           gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --target "${{ steps.get_version.outputs.sha }}" \
-            --title "RPMiniV2 test build (${{ steps.get_version.outputs.version }})" \
-            --notes "Test package of spruce with the Retroid Pocket Mini V2, from \`mofang\` at \`${{ steps.get_version.outputs.sha }}\`. Not an OTA candidate. Extract it to the root of the spruce card: the SPRUCEOS partition of the LightMoss card (made on its first boot), or a card formatted FAT32/exFAT. LightMoss itself runs from the internal storage (lightmoss-rpminiv2-*.img.xz from MarsInsanity/LightMoss; see README-LightMoss.txt on that image's card)." \
+            --title "RPMiniV2 build (${{ steps.get_version.outputs.version }})" \
+            --notes "spruce with the Retroid Pocket Mini V2, from \`mofang\` at \`${{ steps.get_version.outputs.sha }}\` (upstream spruceUI/spruceOS Development merged in). A device running an earlier RPMiniV2 build gets it from spruce's updater (Check for Updates), which reads this fork's feed (branch rpminiv2-ota), never spruceUI's. To install by hand, extract it to the root of the spruce card: the SPRUCEOS partition of the LightMoss card (made on its first boot), or a card formatted FAT32/exFAT. LightMoss itself runs from the internal storage (lightmoss-rpminiv2-*.img.xz from MarsInsanity/LightMoss; see README-LightMoss.txt on that image's card)." \
             --prerelease
           for attempt in 1 2 3; do
             timeout 900 gh release upload "$TAG" "$FILE" --repo "$GITHUB_REPOSITORY" --clobber && break
@@ -170,3 +175,66 @@ jobs:
             sleep 30
           done
           echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}" >> "$GITHUB_STEP_SUMMARY"
+
+      # The update feed RPMiniV2's spruce reads (RPMiniV2.cfg SPRUCE_OTA_URL:
+      # raw.githubusercontent.com, because the updater fetches the feed without
+      # following redirects, as GitHub's release downloads need). It names this
+      # build as the "nightly" (full updates only; the cfg pins the channel and
+      # type) and, so nothing can ever offer spruceUI's stable instead, as the
+      # "stable" too. Written only after the archive is uploaded, to the
+      # rpminiv2-ota branch, which holds nothing else. The run token pushes it:
+      # its pushes start no workflow.
+      - name: Publish the update feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.get_version.outputs.version }}
+          BASE_VERSION: ${{ steps.get_version.outputs.base }}
+          SHA: ${{ steps.get_version.outputs.sha }}
+          TAG: ${{ steps.get_version.outputs.tag }}
+          FILE: spruceV${{ steps.get_version.outputs.version }}.7z
+        run: |
+          CHECKSUM="$(md5sum "$FILE" | cut -d' ' -f1)"
+          SIZE_MB="$(ls -l --block-size=1M "$FILE" | awk '{print $5}')"
+          LINK="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${FILE}"
+          INFO="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
+          feed_dir="$(mktemp -d)"
+          git -C "$feed_dir" init -q
+          git -C "$feed_dir" remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git -C "$feed_dir" fetch -q --depth 1 origin rpminiv2-ota 2>/dev/null; then
+            git -C "$feed_dir" checkout -q -B rpminiv2-ota FETCH_HEAD
+          else
+            git -C "$feed_dir" checkout -q --orphan rpminiv2-ota
+          fi
+          mkdir -p "$feed_dir/OTA"
+          {
+            echo "RELEASE_VERSION=${BASE_VERSION}"
+            echo "RELEASE_CHECKSUM=${CHECKSUM}"
+            echo "RELEASE_SIZE_IN_MB=${SIZE_MB}"
+            echo "RELEASE_LINK=${LINK}"
+            echo "RELEASE_INFO=${INFO}"
+            echo "NIGHTLY_VERSION=${VERSION}"
+            echo "NIGHTLY_CHECKSUM=${CHECKSUM}"
+            echo "NIGHTLY_SIZE_IN_MB=${SIZE_MB}"
+            echo "NIGHTLY_LINK=${LINK}"
+            echo "NIGHTLY_INFO=${INFO}"
+            echo "NIGHTLY_COMMIT=${SHA}"
+          } > "$feed_dir/OTA/spruce"
+          cat > "$feed_dir/README.md" <<'README'
+          The update feed of spruce for the Retroid Pocket Mini V2 (branch mofang),
+          written by .github/workflows/rpminiv2-test-build.yml after each build.
+          RPMiniV2.cfg points spruce's updater at OTA/spruce here.
+          README
+          sed -i 's/^          //' "$feed_dir/README.md"
+          cat "$feed_dir/OTA/spruce"
+          git -C "$feed_dir" add OTA/spruce README.md
+          if git -C "$feed_dir" diff --cached --quiet; then
+            echo "Feed unchanged"; exit 0
+          fi
+          git -C "$feed_dir" -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "RPMiniV2 feed: ${VERSION} (${SHA:0:7})"
+          for attempt in 1 2 3; do
+            git -C "$feed_dir" push -q origin rpminiv2-ota && break
+            [ "$attempt" = 3 ] && { echo "::error::could not push the update feed"; exit 1; }
+            sleep 10
+          done
+          echo "Feed: https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/rpminiv2-ota/OTA/spruce" >> "$GITHUB_STEP_SUMMARY"

@@ -193,6 +193,10 @@ check_for_update() {
     OTA_URL="https://spruceui.github.io/OTA/spruce"
     OTA_URL_BACKUP="https://raw.githubusercontent.com/spruceUI/spruceui.github.io/refs/heads/main/OTA/spruce"
     OTA_URL_BACKUP_BACKUP="https://raw.githubusercontent.com/spruceUI/spruceSource/refs/heads/main/OTA/spruce"
+    # A platform's own feed and channel (SPRUCE_OTA_URL / SPRUCE_OTA_CHANNEL), as in App/-OTA/downloader.sh.
+    if [ -n "$SPRUCE_OTA_URL" ]; then
+        OTA_URL="$SPRUCE_OTA_URL"; OTA_URL_BACKUP="$SPRUCE_OTA_URL"; OTA_URL_BACKUP_BACKUP="$SPRUCE_OTA_URL"
+    fi
     # Not App/-OTA/tmp: that directory holds a pending "install later"
     # queue for the EZ Updater, and this function removes its own scratch dir.
     TMP_DIR="$SD_CARD/App/-OTA/check_tmp"
@@ -203,7 +207,7 @@ check_for_update() {
     # Nightlies can be rebuilt several times a day; waiting 24 h after a prompt
     # would flag a rebuild a day late. Check on every boot instead (one small
     # fetch with mirrors).
-    if [ "$(get_config_value '.menuOptions."Network Settings".releaseChannel.selected' "Stable")" = "Nightly" ]; then
+    if [ "${SPRUCE_OTA_CHANNEL:-$(get_config_value '.menuOptions."Network Settings".releaseChannel.selected' "Stable")}" = "Nightly" ]; then
         check_interval=0
     fi
 
@@ -276,7 +280,7 @@ check_for_update() {
 
     TARGET_VERSION="$RELEASE_VERSION"
 
-    if [ "$(get_config_value '.menuOptions."Network Settings".releaseChannel.selected' "Stable")" = "Nightly" ]; then
+    if [ "${SPRUCE_OTA_CHANNEL:-$(get_config_value '.menuOptions."Network Settings".releaseChannel.selected' "Stable")}" = "Nightly" ]; then
         TARGET_VERSION="$NIGHTLY_VERSION"
     fi
 

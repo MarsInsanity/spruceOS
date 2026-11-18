@@ -9,6 +9,13 @@ CONFIG_FILE="/mnt/SDCARD/App/-OTA/config.json"
 OTA_URL="https://spruceui.github.io/OTA/spruce"
 OTA_URL_BACKUP="https://raw.githubusercontent.com/spruceUI/spruceui.github.io/refs/heads/main/OTA/spruce"
 OTA_URL_BACKUP_BACKUP="https://raw.githubusercontent.com/spruceUI/spruceSource/refs/heads/main/OTA/spruce"
+# A platform cfg can name its own update feed (SPRUCE_OTA_URL), which then
+# replaces spruceUI's, backups included, so a fork never falls back to it.
+if [ -n "$SPRUCE_OTA_URL" ]; then
+    OTA_URL="$SPRUCE_OTA_URL"
+    OTA_URL_BACKUP="$SPRUCE_OTA_URL"
+    OTA_URL_BACKUP_BACKUP="$SPRUCE_OTA_URL"
+fi
 TMP_DIR="/mnt/SDCARD/App/-OTA/tmp"
 # Written by updater.py after a nightly install: the stable release that
 # nightly was generated from. Absent on stable installs.
@@ -302,7 +309,8 @@ NIGHTLY_INFO=$(sed -n 's/^NIGHTLY_INFO=//p' "$TMP_DIR/spruce" | tr -d '\n\r')
 NIGHTLY_COMMIT=$(sed -n 's/^NIGHTLY_COMMIT=//p' "$TMP_DIR/spruce" | tr -d '\n\r' | tr 'A-F' 'a-f')
 
 # Determine OTA update type
-OTA_UPDATE_TYPE="$(get_config_value '.menuOptions."Network Settings".otaUpdateType.selected' "Full")"
+# SPRUCE_OTA_TYPE / SPRUCE_OTA_CHANNEL: a platform cfg pinning them (with its own feed).
+OTA_UPDATE_TYPE="${SPRUCE_OTA_TYPE:-$(get_config_value '.menuOptions."Network Settings".otaUpdateType.selected' "Full")}"
 
 # "OTA: skip version check" allows re-installing the same (or an older)
 # stable release, e.g. to repair an installation, and lets a nightly device
@@ -316,7 +324,7 @@ SKIP_VERSION_CHECK="$(get_config_value '.menuOptions."Network Settings".otaSkipV
 # the base: every nightly diff is generated from the current stable release
 # and covers every path touched since it, so it applies on top of any
 # nightly with the same recorded base.
-OTA_CHANNEL="$(get_config_value '.menuOptions."Network Settings".releaseChannel.selected' "Stable")"
+OTA_CHANNEL="${SPRUCE_OTA_CHANNEL:-$(get_config_value '.menuOptions."Network Settings".releaseChannel.selected' "Stable")}"
 if [ "$OTA_CHANNEL" = "Nightly" ]; then
     TARGET_CHANNEL="nightly"
 else
