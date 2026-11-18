@@ -19,6 +19,7 @@ device_init() {
         cp "$SYSTEM_JSON_DEFAULT" "$SYSTEM_JSON"
     fi
     set_backlight "$(get_backlight_level)"
+    /mnt/SDCARD/spruce/scripts/platform/lightmoss/rpminiv2_fan.sh & # Fan Speed setting
     darkmoss_wifi_up
     # The ALSA config: runtime.sh removes $HOME/.asoundrc before device_init, and
     # on dArkMoss bluetooth.sh boot writes it again (asound-setup.sh, also with
