@@ -217,6 +217,10 @@ with zipfile.ZipFile(sys.argv[1]) as z:
 				# its keystrokes never arrive. The pad table is all raw joystick.
 				;;
 			*)
+				# gptokeyb2 reads the pad as an SDL game controller and its
+				# defkeys.gptk speaks SDL's positional names. The Retroid pad
+				# has no stock mapping, and SDL's own one swaps L2/R2.
+				[ "$PLATFORM" = "RPMiniV2" ] && export_sdl_gamecontroller_map positional
 				./gptokeyb2 "mupen64plus" -c "./defkeys.gptk" &
 				sleep 0.3
 				;;
@@ -295,7 +299,7 @@ with zipfile.ZipFile(sys.argv[1]) as z:
 	export M64P_AUTOLOAD=1
 	export EMU_OVERLAY_ROMFILE="$ROM_FILE"
 	case "$PLATFORM" in
-		"Anbernic"* | XUMiniM) export_sdl_gamecontroller_map positional ;;
+		"Anbernic"* | XUMiniM | RPMiniV2) export_sdl_gamecontroller_map positional ;;
 	esac
 	treat_dpad_as_analog
 	./mupen64plus \
