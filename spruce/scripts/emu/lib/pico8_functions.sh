@@ -141,6 +141,11 @@ EOF
 			Flip|Brick*|SmartPro|Zero*|XU20) export PICO8_IGM_HIDE_SCANCODE=41 ;;
 		esac
 
+		# RPMiniV2: no sdl_controllers profile has the Retroid pad, and SDL's
+		# own map swaps L2/R2. Positional, like the profiles' X360 rows: SDL A
+		# is PICO-8's O, and the profile names put O on B, the bottom button.
+		[ "$PLATFORM" = "RPMiniV2" ] && export_sdl_gamecontroller_map positional
+
 		# use_wget is 1, so PICO-8 shells out to wget for every cart fetch.
 		# spruce/bin64/wget is first on PATH but is linked against
 		# libpcre.so.1, which the RGB30's dArkMoss base does not ship - it

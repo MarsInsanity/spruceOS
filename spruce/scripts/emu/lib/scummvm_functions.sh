@@ -58,6 +58,10 @@ _set_scummvm_platform() {
 		*)
 			SCUMMVM_CONFIG="/mnt/SDCARD/Saves/.config/scummvm-flip/scummvm.ini"
 			export LD_LIBRARY_PATH="$EMU_DIR/lib:$LD_LIBRARY_PATH"
+			# RPMiniV2: gamecontrollerdb.txt has the Retroid pads for Android
+			# only. Label-named, as for the Anbernic line and the db's
+			# TRIMUI/MIYOO rows: A is the button marked A.
+			[ "$PLATFORM" = "RPMiniV2" ] && export_sdl_gamecontroller_map
 			;;
 	esac
 
