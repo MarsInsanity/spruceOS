@@ -67,19 +67,32 @@ pcm.softvol {
 ASOUND
 }
 
-# The speakers' digital gain (WSA_RX0/RX1 Digital Volume) at 0 dB. ROCKNIX's UCM
-# boots it at +36 dB for PipeWire's software volume to bring down; spruce's
-# softvol "Master" starts at full level, so the first sounds were painfully loud.
+# The speakers' digital gain (WSA_RX0/RX1 Digital Volume) at 0 dB: control
+# value 84 on its 0..124 scale (-84..+40 dB). ROCKNIX's UCM boots it at 120,
+# +36 dB, for PipeWire's software volume to bring down; under spruce only
+# softvol "Master" is in front of it, and a full-scale menu sound clips.
 # LightMoss does this itself from 62af605; this covers the images before it.
+# It runs at boot and on every volume change (apply_playback_path), and logs
+# whenever it finds the gain anywhere else, so a log shows what moved it.
 lightmoss_speaker_gain() {
     for _c in /proc/asound/card[0-9]*; do
         case "$(cat "$_c/id" 2>/dev/null)" in
-            RetroidPocket*)
-                for _e in "WSA_RX0 Digital" "WSA_RX1 Digital"; do
-                    amixer -q -c "${_c##*/card}" sset "$_e" 0dB 2>/dev/null
-                done
-                ;;
+            RetroidPocket*) ;;
+            *) continue ;;
         esac
+        _n="${_c##*/card}"
+        for _e in "WSA_RX0 Digital Volume" "WSA_RX1 Digital Volume"; do
+            _v="$(amixer -c "$_n" cget name="$_e" 2>/dev/null | sed -n 's/.*: values=\([0-9]*\).*/\1/p')"
+            case "$_v" in
+                84) continue ;;
+                "") log_message "$PLATFORM: could not read $_e"; continue ;;
+            esac
+            if amixer -q -c "$_n" cset name="$_e" 84 2>/dev/null; then
+                log_message "$PLATFORM: $_e was $((_v - 84)) dB, set to 0 dB"
+            else
+                log_message "$PLATFORM: $_e is $((_v - 84)) dB and could not be set to 0 dB"
+            fi
+        done
     done
 }
 
@@ -97,9 +110,10 @@ device_get_fw_version() {
 }
 
 # LightMoss's lightmoss-audio routes hw:0,0 to the headphones or the speakers
-# by the jack itself: no codec path for spruce to set.
+# by the jack itself: no codec path for spruce to set. set_volume calls this
+# on every change, which makes it the place to keep the speakers' gain right.
 apply_playback_path() {
-    :
+    lightmoss_speaker_gain
 }
 
 # The battery's own status; the charger's "online" is the USB/Mains supply's.
