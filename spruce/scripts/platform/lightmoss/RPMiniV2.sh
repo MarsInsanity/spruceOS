@@ -6,12 +6,14 @@
 
 . "/mnt/SDCARD/spruce/scripts/platform/darkmoss/dArkMossCommon.sh"
 . "/mnt/SDCARD/spruce/scripts/platform/lightmoss/rpminiv2_retroarch.sh"
+. "/mnt/SDCARD/spruce/scripts/platform/lightmoss/rpminiv2_triggers.sh"
 
 # dArkMossCommon's, without what belongs to Rockchip boards: no rk817 PMIC
 # clean-up (it writes I2C bus 0, address 0x20, which is something else here)
 # and no dArkMoss debug dump.
 device_init() {
     lightmoss_pad_is_a_joystick
+    rpminiv2_apply_trigger_mode
     resolve_pad_node
     log_message "$PLATFORM: spruce is ${SD_DEV:-<unresolved>} at $SD_MOUNTPOINT"
     resolve_key_event_node
