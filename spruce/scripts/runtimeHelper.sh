@@ -175,6 +175,13 @@ fetch_release_info() {
 
 check_for_update() {
 
+    # A platform cfg can rule spruce's own updater out (the Mini V2 runs the
+    # LightMoss fork, which upstream releases would replace).
+    if [ -n "$SPRUCE_OTA_DISABLED" ]; then
+        log_message "Update Check: spruce's updater is off on $PLATFORM, skipping."
+        return 1
+    fi
+
     # No radio, no network, no check - and none of the three 20-second waits.
     if ! wifi_available_on_device; then
         log_message "Update Check: device has no WiFi, skipping."
