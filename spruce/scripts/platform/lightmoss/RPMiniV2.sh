@@ -138,6 +138,108 @@ RULES
     done
 }
 
+# The event node whose device has exactly the name $1, or nothing.
+lightmoss_input_node() {
+    for _d in /sys/class/input/event*; do
+        [ "$(cat "$_d/device/name" 2>/dev/null)" = "$1" ] && { echo "/dev/input/${_d##*/}"; return 0; }
+    done
+    return 1
+}
+
+# The same, waiting up to $2 tenths of a second for it to appear.
+lightmoss_wait_input_node() {
+    _w=0
+    until lightmoss_input_node "$1"; do
+        [ "$_w" -ge "$2" ] && return 1
+        sleep 0.1
+        _w=$((_w + 1))
+    done
+}
+
+# The nodes by name, not by number: event numbers change between boots (on one
+# the gpio-keys and touchscreen nodes swapped), and the pad (the retroid module)
+# and the volume keys (LightMoss's uinput daemon) register around the time spruce
+# starts, so each gets a few seconds to appear. Without a pad dArkMoss's resolver
+# left event0 (the haptics) and every control was dead.
+resolve_pad_node() {
+    _pad=""
+    _old_ifs="$IFS"; IFS='|'
+    # shellcheck disable=SC2086 # split on | on purpose
+    set -- $PAD_NAME_CANDIDATES
+    IFS="$_old_ifs"
+    _w=0
+    while [ "$#" -gt 0 ]; do
+        for _name in "$@"; do
+            _pad="$(lightmoss_input_node "$_name")" && break
+        done
+        [ -n "$_pad" ] && break
+        [ "$_w" -ge 50 ] && break
+        sleep 0.1
+        _w=$((_w + 1))
+    done
+    if [ -n "$_pad" ]; then
+        export EVENT_PATH_READ_INPUTS_SPRUCE="$_pad"
+        export EVENT_PATH_SEND_TO_RA_AND_PPSSPP="$_pad"
+        export EVENT_PATH_SEND_TO_DRASTIC="$_pad"
+        log_message "$PLATFORM: joypad at $_pad"
+    else
+        log_message "$PLATFORM: no joypad node found after 5 s - controls will be dead"
+    fi
+}
+
+# The volume keys are LightMoss's "LightMoss Volume Keys" (its daemon merges
+# gpio-keys' Volume Up and the PMIC's Volume Down). dArkMoss's resolver took the
+# first node declaring both keys, and the sound card's "RetroidPocket Headset
+# Jack" declares both too (its buttons 2 and 3): it registered only about 0.2 s
+# after LightMoss's node on every logged boot, and the first to register won.
+# Power is pm8941_pwrkey. The name decides; the capability scan, without the
+# jack, the pad and anything else named "...Jack", is only the fallback.
+resolve_key_event_node() {
+    _seen=""
+    for _d in /sys/class/input/event*; do
+        [ -e "$_d" ] && _seen="$_seen ${_d##*/}:$(cat "$_d/device/name" 2>/dev/null)"
+    done
+    log_message "$PLATFORM: input nodes:$_seen"
+
+    _power="$(lightmoss_input_node pm8941_pwrkey)"
+    _volume=""
+    if [ -x /usr/sbin/lightmoss-volkeys ]; then
+        _volume="$(lightmoss_wait_input_node "LightMoss Volume Keys" 30)" ||
+            log_message "$PLATFORM: no LightMoss Volume Keys node after 3 s"
+    fi
+    for _d in /sys/class/input/event*; do
+        [ -e "$_d" ] || continue
+        _ev="${_d##*/}"
+        _name="$(cat "$_d/device/name" 2>/dev/null)"
+        [ -z "$_power" ] && case "$_name" in *pwrkey*) _power="/dev/input/$_ev" ;; esac
+        [ -n "$_volume" ] && continue
+        [ "/dev/input/$_ev" = "$EVENT_PATH_READ_INPUTS_SPRUCE" ] && continue
+        case "$_name" in *Jack) continue ;; esac
+        node_reports_volume_keys "$_ev" && _volume="/dev/input/$_ev"
+    done
+
+    if [ -n "$_power" ] && [ -c "$_power" ]; then
+        export EVENT_PATH_POWER="$_power"
+        log_message "$PLATFORM: power key on $_power"
+    fi
+    if [ -n "$_volume" ] && [ -c "$_volume" ]; then
+        export EVENT_PATH_VOLUME="$_volume"
+        log_message "$PLATFORM: volume keys on $_volume"
+    else
+        log_message "$PLATFORM: no node reports the volume keys - leaving $EVENT_PATH_VOLUME"
+    fi
+    export VOLUME_KEYS_ON_PAD=0
+
+    {
+        echo "EVENT_PATH_READ_INPUTS_SPRUCE='${EVENT_PATH_READ_INPUTS_SPRUCE}'"
+        echo "EVENT_PATH_SEND_TO_RA_AND_PPSSPP='${EVENT_PATH_READ_INPUTS_SPRUCE}'"
+        echo "EVENT_PATH_SEND_TO_DRASTIC='${EVENT_PATH_READ_INPUTS_SPRUCE}'"
+        echo "EVENT_PATH_VOLUME='${EVENT_PATH_VOLUME}'"
+        echo "EVENT_PATH_POWER='${EVENT_PATH_POWER}'"
+        echo "VOLUME_KEYS_ON_PAD='${VOLUME_KEYS_ON_PAD}'"
+    } > "$SPRUCE_INPUT_NODES_FILE" 2>/dev/null
+}
+
 # The speakers' digital gain (WSA_RX0/RX1 Digital Volume) at
 # LIGHTMOSS_SPEAKER_GAIN_DB: control value 84 + dB on its 0..124 scale
 # (-84..+40 dB). ROCKNIX's UCM boots it at 120, +36 dB, for PipeWire's software
