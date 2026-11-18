@@ -321,34 +321,106 @@ device_exit_sleep() {
     apply_backlight "$(get_backlight_level)"
 }
 
-# spruce's idle timers count the pad's events as activity only when told its node.
-set_event_arg_for_idlemon() {
-    EVENT_ARG="-e $EVENT_PATH_READ_INPUTS_SPRUCE"
+# Idle on the charger (idlemon_chargingAction.sh): the AMOLED dark rather than
+# a menu left lit for hours. DCS brightness 0 is the darkest the panel goes
+# without a DPMS off, which only the DRM master can ask for.
+turn_off_screen() {
+    [ -n "$DEVICE_BACKLIGHT_PATH" ] && echo 0 > "$DEVICE_BACKLIGHT_PATH" 2>/dev/null
 }
 
-# The kmsgrab capture is the panel's raw scanout: portrait, the picture
-# turned by the plane. Turn it back for the Game Switcher. UNVERIFIED which way.
+turn_on_screen() {
+    apply_backlight "$(get_backlight_level)"
+}
+
+# spruce's idle timers count the pad as activity: its js node, which has the
+# buttons and sticks but not the rumble emulators write to its event node
+# (EV_FF goes to every reader of the event node), so a game that keeps
+# rumbling does not hold off the idle actions.
+set_event_arg_for_idlemon() {
+    set_idlemon_to_pad
+}
+
+# SSH is spruce's own dropbear (dropbearmulti, as on spruce's other 64-bit
+# devices), not LightMoss's "ssh" unit: the toggle starts and stops the
+# daemon by unit name but tells whether it runs with pgrep of the same name,
+# and LightMoss's unit runs a process called dropbear, so "SSH off" never
+# stopped it. dropbearmulti matches itself, keeps its host keys on the card
+# (they survive a LightMoss update or reinstall) and serves SFTP.
+get_ssh_service_name() {
+    echo "dropbearmulti"
+}
+
+# The darkmoss_force_ssh flag (bring-up, no settings screen needed) still
+# starts LightMoss's own unit, unless the setting has spruce's on port 22.
+darkmoss_ssh_up() {
+    [ -e /mnt/SDCARD/spruce/flags/darkmoss_force_ssh ] || return 0
+    command -v systemctl >/dev/null 2>&1 || return 0
+    [ "$(get_config_value '.menuOptions."Network Settings".enableSSH.selected' "False")" = "True" ] && return 0
+    systemctl is-active --quiet ssh 2>/dev/null && return 0
+    if systemctl start ssh >/dev/null 2>&1; then
+        log_message "$PLATFORM: started LightMoss's ssh unit (darkmoss_force_ssh)"
+    else
+        log_message "$PLATFORM: could not start LightMoss's ssh unit"
+    fi
+}
+
+# Screenshots. RetroArch makes its own. The Game Switcher shows the thumbnail
+# RetroArch writes with its auto save state on the way out
+# (savestate_thumbnail_enable; PyUI looks there before .gameswitcher), and the
+# Screenshot action asks it through its command port (it saves to
+# Saves/screenshots). On the device kmsgrab never returned while RetroArch's
+# frame was on the plane: SIGKILL after 15 s, the game left running all that
+# time and a second press started a second Game Switcher (cause UNVERIFIED).
+#
+# Anything else is kmsgrab's. It reads the plane's framebuffer, which is the
+# program's own buffer, not the SDE rotator's turned copy: SDL programs
+# (LightMoss's SDL turns the panel with the plane) draw 1240x1080 upright;
+# PyUI, with its own SDL, draws 1080x1240, its picture turned 90 degrees
+# clockwise (SCREEN_ROTATION). Only a portrait frame is turned back.
 take_screenshot() {
     screenshot_path="$1"
     [ -n "$screenshot_path" ] || return 1
+    if pidof ra64.universal ra32.universal retroarch >/dev/null 2>&1; then
+        case "$screenshot_path" in
+            */.gameswitcher/*)
+                log_message "take_screenshot: RetroArch's own save state thumbnail serves the Game Switcher"
+                return 1
+                ;;
+        esac
+        if echo "SCREENSHOT" | /usr/bin/nc -u -w1 127.0.0.1 55355 >/dev/null 2>&1; then
+            log_message "take_screenshot: asked RetroArch for a screenshot"
+            return 0
+        fi
+    fi
     _ff=""
     for _c in /mnt/SDCARD/spruce/bin/ffmpeg /usr/bin/ffmpeg; do
         [ -x "$_c" ] && { _ff="$_c"; break; }
     done
     [ -n "$_ff" ] || { log_message "take_screenshot: no ffmpeg with kmsgrab available"; return 1; }
     mkdir -p "$(dirname "$screenshot_path")" 2>/dev/null
+    _err="/tmp/rpminiv2_screenshot.err"
     # On the device two Game Switcher screenshots outlived timeout's SIGTERM by
     # minutes, the game left running behind them. Under LightMoss spruce's
     # stdin is tty1, and an ffmpeg that sets up the terminal from outside its
     # foreground group is stopped (SIGTTOU), where SIGTERM does nothing: so
-    # -nostdin and </dev/null, and SIGKILL for one that hangs anyway.
-    if timeout -s KILL 15 "$_ff" -nostdin -hide_banner -loglevel error -f kmsgrab -i - \
-        -vf "hwdownload,format=bgr0,format=rgba,transpose=2" \
-        -frames:v 1 -update 1 -y "$screenshot_path" </dev/null >/dev/null 2>&1; then
+    # -nostdin and </dev/null, and SIGKILL for one that hangs anyway. Its
+    # complaints go to the log, so the next failure says why.
+    timeout -s KILL "${LIGHTMOSS_SCREENSHOT_TIMEOUT:-5}" "$_ff" -nostdin -hide_banner -loglevel warning \
+        -f kmsgrab -i - \
+        -vf "hwdownload,format=bgr0,format=rgba,transpose=dir=cclock:passthrough=landscape" \
+        -frames:v 1 -update 1 -y "$screenshot_path" </dev/null >/dev/null 2>"$_err"
+    _rc=$?
+    if [ "$_rc" -eq 0 ] && [ -s "$screenshot_path" ]; then
+        rm -f "$_err"
         return 0
     fi
     rm -f "$screenshot_path" 2>/dev/null
-    log_message "take_screenshot: kmsgrab capture failed"
+    case "$_rc" in
+        124|137) _why="no frame within ${LIGHTMOSS_SCREENSHOT_TIMEOUT:-5} s" ;;
+        *) _why="exit $_rc" ;;
+    esac
+    log_message "take_screenshot: kmsgrab capture failed ($_why): $(tail -n 3 "$_err" 2>/dev/null | tr '\n' ' ')"
+    rm -f "$_err"
     return 1
 }
 
