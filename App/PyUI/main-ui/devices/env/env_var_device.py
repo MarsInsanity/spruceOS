@@ -280,6 +280,15 @@ class EnvVarDevice(DeviceCommon):
     def supports_touch(self):
         return bool(os.environ.get("TOUCH_EVENT_PATH"))
 
+    # TOUCH_ROTATION: the turn TouchWatcher undoes on the touchscreen's raw
+    # coordinates, when it is not SCREEN_ROTATION's: 0 where the kernel already
+    # reports the upright UI frame. Unset or not a number: None (SCREEN_ROTATION).
+    def touch_rotation(self):
+        try:
+            return int(os.environ.get("TOUCH_ROTATION", ""))
+        except ValueError:
+            return None
+
     def remap_buttons(self):
         self.button_remapper.remap_buttons()
 

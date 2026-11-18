@@ -52,7 +52,9 @@ class TouchWatcher:
     Raw coordinates are scaled to the panel from the device's reported ABS
     range and then mapped through the inverse of the rotation Display applies
     (screen_rotation()), so the point lands in the same logical space the
-    views render in.
+    views render in. A device whose kernel already reports touch in that
+    logical frame says so with touch_rotation() (0), and only the scaling
+    is done.
     """
 
     def __init__(self, event_path, device, event_format='llHHi'):
@@ -70,7 +72,7 @@ class TouchWatcher:
         self.pending_game_selection_tap = None
         self._reset_contact()
         PyUiLogger.get_logger().info(
-            f"Touch on {event_path}: x {self.x_range} y {self.y_range} rotation {device.screen_rotation()}")
+            f"Touch on {event_path}: x {self.x_range} y {self.y_range} rotation {self._rotation()}")
 
     # ----- device -----
     def _open(self):
@@ -96,9 +98,16 @@ class TouchWatcher:
             return None
         return (minimum, maximum)
 
+    def _rotation(self):
+        """The rotation to undo on raw coordinates: the device's touch_rotation()
+        when it gives one, else screen_rotation(), the turn the picture gets."""
+        touch_rotation = getattr(self.device, "touch_rotation", None)
+        rotation = touch_rotation() if callable(touch_rotation) else None
+        return self.device.screen_rotation() if rotation is None else rotation
+
     def _panel_size(self):
         w, h = self.device.screen_width(), self.device.screen_height()
-        if self.device.screen_rotation() % 360 in (90, 270):
+        if self._rotation() % 360 in (90, 270):
             return h, w
         return w, h
 
@@ -108,7 +117,7 @@ class TouchWatcher:
         px = (raw_x - self.x_range[0]) * panel_w / (self.x_range[1] - self.x_range[0] + 1)
         py = (raw_y - self.y_range[0]) * panel_h / (self.y_range[1] - self.y_range[0] + 1)
         w, h = self.device.screen_width(), self.device.screen_height()
-        rot = self.device.screen_rotation() % 360
+        rot = self._rotation() % 360
         # Display.rotate_canvas draws the logical canvas rotated clockwise by rot
         # onto the panel; invert that so the point is in logical coordinates.
         if rot == 90:
