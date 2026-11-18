@@ -28,21 +28,22 @@ device_init() {
     /mnt/SDCARD/spruce/scripts/asound-setup.sh "$HOME" >/dev/null 2>&1
     # alsa-lib creates softvol's "Master" (at full level) when PyUI opens its
     # audio, and PyUI applies the saved volume right after, before any sound.
-    # No priming here: a few milliseconds of silence played through dmix at
-    # boot came before PyUI hung on its way out to every game (it never exited
-    # after closing its window), and are the first suspect.
+    # No priming: nothing needs to play before PyUI does.
     /mnt/SDCARD/spruce/scripts/bluetooth.sh boot &
     # A few times over the first seconds: LightMoss's audio service may still be
     # running ROCKNIX's UCM boot sequence, which sets the gain this undoes.
     ( for _t in 0 3 5 10; do sleep "$_t"; lightmoss_speaker_gain; done ) &
 }
 
-# Diagnostic, temporary: an empty file named rpminiv2-no-dmix at the root of
-# the card leaves dmix out, softvol "Master" straight on hw:0,0 (the DSP's
-# MultiMedia1 stream). One program plays at a time then, and a second gets
-# EBUSY instead of mixing in. Tells a dmix that stalls on the q6asm stream
-# (PyUI then hangs closing its audio on the way to a game) from anything else.
-if [ -e /mnt/SDCARD/rpminiv2-no-dmix ]; then
+# softvol "Master" straight on hw:0,0 (the DSP's MultiMedia1 stream), without
+# dArkMoss's dmix. On the device every session with dmix in the path had PyUI
+# hang on its way out to a game: it closed its window (tty1 showed through)
+# and never exited, so spruce never started the game. The one session with no
+# ALSA config from spruce at all handed over normally. A dmix stream on the q6asm PCM that
+# stops advancing would leave SDL's audio thread blocked, and closing the
+# audio device waits for that thread. Without dmix one program plays at a
+# time: a second gets EBUSY instead of mixing in, and PyUI closes its audio
+# before a game starts.
 device_write_default_asound_rc() {
     cat > "$ASOUND_CONF" <<ASOUND
 pcm.spruce_speaker {
@@ -65,7 +66,6 @@ pcm.softvol {
 }
 ASOUND
 }
-fi
 
 # The speakers' digital gain (WSA_RX0/RX1 Digital Volume) at 0 dB. ROCKNIX's UCM
 # boots it at +36 dB for PipeWire's software volume to bring down; spruce's
