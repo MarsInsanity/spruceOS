@@ -431,19 +431,49 @@ take_screenshot() {
 # The common CPU functions write cpu0 and cpu4 with one set of frequencies;
 # the SM8250 has three clusters with their own (policy0, policy4, policy7).
 # Each mode sets every policy from its own cpuinfo limits.
+#
+#   powersave   cpu0-3 only, schedutil up to LIGHTMOSS_POWERSAVE_PERCENT;
+#               GPU simple_ondemand up to LIGHTMOSS_GPU_POWERSAVE_MAX_HZ
+#   smart       all cores, schedutil over the whole range;
+#               GPU simple_ondemand up to LIGHTMOSS_GPU_STOCK_MAX_HZ
+#   performance all cores, schedutil with a floor at
+#               LIGHTMOSS_PERFORMANCE_MIN_PERCENT of each cluster's top;
+#               GPU pinned at LIGHTMOSS_GPU_STOCK_MAX_HZ
+#   overclock   all cores pinned at their top speed;
+#               GPU simple_ondemand up to LIGHTMOSS_GPU_OVERCLOCK_MAX_HZ
+#
+# Performance used to pin all eight cores at their top speed, which is what
+# NDS, N64, PSP, Dreamcast, Saturn and ports run in by default: the SD865 is
+# far beyond what they need, and it only ran hotter. The GPU's steps above
+# 587 MHz are the KonaBess ladder LightMoss's kernel carries from ROCKNIX
+# (up to 925 MHz at a raised voltage), which ROCKNIX leaves off unless the
+# user picks an overclock: here only overclock reaches them.
 lightmoss_policies() {
     for _p in /sys/devices/system/cpu/cpufreq/policy*; do
         [ -d "$_p" ] && echo "$_p"
     done
 }
 
-# lightmoss_set_policies GOVERNOR MAX_PERCENT [MIN=max]
+# lightmoss_set_policies GOVERNOR MAX_PERCENT [MIN_PERCENT|max]
 lightmoss_set_policies() {
     for _p in $(lightmoss_policies); do
-        _lo="$(cat "$_p/cpuinfo_min_freq")"; _hi="$(cat "$_p/cpuinfo_max_freq")"
+        # A policy whose CPUs are all offline (powersave's policy4 and policy7)
+        # answers EBUSY: nothing to set there until they come back.
+        _lo="$(cat "$_p/cpuinfo_min_freq" 2>/dev/null)"
+        _hi="$(cat "$_p/cpuinfo_max_freq" 2>/dev/null)"
+        case "$_lo" in ''|*[!0-9]*) continue ;; esac
+        case "$_hi" in ''|*[!0-9]*) continue ;; esac
         _max=$(( _hi * $2 / 100 ))
         [ "$_max" -lt "$_lo" ] && _max="$_lo"
-        if [ "$3" = "max" ]; then _min="$_max"; else _min="$_lo"; fi
+        case "$3" in
+            max) _min="$_max" ;;
+            ''|*[!0-9]*) _min="$_lo" ;;
+            *)
+                _min=$(( _hi * $3 / 100 ))
+                [ "$_min" -lt "$_lo" ] && _min="$_lo"
+                [ "$_min" -gt "$_max" ] && _min="$_max"
+                ;;
+        esac
         chmod a+w "$_p/scaling_governor" "$_p/scaling_min_freq" "$_p/scaling_max_freq" 2>/dev/null
         echo "$1" > "$_p/scaling_governor" 2>/dev/null
         # The floor down first, so the new top is never below the old floor.
@@ -454,11 +484,23 @@ lightmoss_set_policies() {
     done
 }
 
+# lightmoss_set_gpu GOVERNOR [CAP_HZ]: the GPU's top at the highest step at or
+# below CAP_HZ (the lowest step when every step is above it; no cap: the
+# highest step the chip's speed bin offers). Prints the top it set.
 lightmoss_set_gpu() {
     [ -d "$GPU_GOVENOR_DIR" ] || return 0
-    _top="$(tr ' ' '\n' < "$GPU_GOVENOR_DIR/available_frequencies" 2>/dev/null | sort -n | tail -n 1)"
-    [ -n "$_top" ] && echo "$_top" > "$GPU_GOVENOR_DIR/max_freq" 2>/dev/null
+    _steps="$(tr ' ' '\n' < "$GPU_GOVENOR_DIR/available_frequencies" 2>/dev/null | grep -E '^[0-9]+$' | sort -n)"
+    [ -n "$_steps" ] || return 0
+    case "$2" in
+        ''|*[!0-9]*) _top="$(echo "$_steps" | tail -n 1)" ;;
+        *) _top="$(echo "$_steps" | awk -v cap="$2" '$1 <= cap { t = $1 } END { print t }')" ;;
+    esac
+    [ -n "$_top" ] || _top="$(echo "$_steps" | head -n 1)"
+    # No floor (0 lifts it), then the top: devfreq clamps whatever runs now.
+    echo 0 > "$GPU_GOVENOR_DIR/min_freq" 2>/dev/null
+    echo "$_top" > "$GPU_GOVENOR_DIR/max_freq" 2>/dev/null
     echo "$1" > "$GPU_GOVENOR_DIR/governor" 2>/dev/null
+    echo "$_top"
 }
 
 set_powersave() {
@@ -466,8 +508,8 @@ set_powersave() {
     flag_add "setting_cpu" --tmp
     cores_online "$DEVICE_MIN_CORES_ONLINE"
     lightmoss_set_policies "${CPU_SMART_GOVENOR:-schedutil}" "${LIGHTMOSS_POWERSAVE_PERCENT:-60}"
-    lightmoss_set_gpu "$GPU_SMART_GOVERNOR"
-    log_message "CPU locked to POWERSAVE: cores $DEVICE_MIN_CORES_ONLINE, ${LIGHTMOSS_POWERSAVE_PERCENT:-60}% of each cluster's top speed"
+    _gpu="$(lightmoss_set_gpu "$GPU_SMART_GOVERNOR" "${LIGHTMOSS_GPU_POWERSAVE_MAX_HZ:-441600000}")"
+    log_message "CPU locked to POWERSAVE: cores $DEVICE_MIN_CORES_ONLINE, ${LIGHTMOSS_POWERSAVE_PERCENT:-60}% of each cluster's top speed, GPU up to ${_gpu:-?} Hz"
     flag_remove "setting_cpu"
 }
 
@@ -476,8 +518,8 @@ set_smart() {
     flag_add "setting_cpu" --tmp
     cores_online "$CPU_SMART_CORES_ONLINE"
     lightmoss_set_policies "${CPU_SMART_GOVENOR:-schedutil}" 100
-    lightmoss_set_gpu "$GPU_SMART_GOVERNOR"
-    log_message "CPU Mode now locked to SMART: cores $CPU_SMART_CORES_ONLINE, ${CPU_SMART_GOVENOR:-schedutil} over each cluster's range"
+    _gpu="$(lightmoss_set_gpu "$GPU_SMART_GOVERNOR" "${LIGHTMOSS_GPU_STOCK_MAX_HZ:-587000000}")"
+    log_message "CPU Mode now locked to SMART: cores $CPU_SMART_CORES_ONLINE, ${CPU_SMART_GOVENOR:-schedutil} over each cluster's range, GPU up to ${_gpu:-?} Hz"
     flag_remove "setting_cpu"
 }
 
@@ -485,13 +527,20 @@ set_performance() {
     flag_check "setting_cpu" && return 0
     flag_add "setting_cpu" --tmp
     cores_online "$DEVICE_MAX_CORES_ONLINE" "$1"
-    lightmoss_set_policies performance 100 max
-    lightmoss_set_gpu "$GPU_PERFORMANCE_GOVERNOR"
-    log_message "CPU Mode now locked to PERFORMANCE: cores $DEVICE_MAX_CORES_ONLINE at each cluster's top speed"
+    lightmoss_set_policies "${LIGHTMOSS_PERFORMANCE_GOVERNOR:-schedutil}" 100 "${LIGHTMOSS_PERFORMANCE_MIN_PERCENT:-50}"
+    _gpu="$(lightmoss_set_gpu "$GPU_PERFORMANCE_GOVERNOR" "${LIGHTMOSS_GPU_STOCK_MAX_HZ:-587000000}")"
+    log_message "CPU Mode now locked to PERFORMANCE: cores $DEVICE_MAX_CORES_ONLINE, ${LIGHTMOSS_PERFORMANCE_GOVERNOR:-schedutil} from ${LIGHTMOSS_PERFORMANCE_MIN_PERCENT:-50}% of each cluster's top speed, GPU at ${_gpu:-?} Hz"
     flag_remove "setting_cpu"
 }
 
-# No overclock on this SoC: the top speeds are the top speeds.
+# Everything at its top: every cluster pinned at its top speed, and the GPU
+# allowed onto its overclock steps.
 set_overclock() {
-    set_performance "$@"
+    flag_check "setting_cpu" && return 0
+    flag_add "setting_cpu" --tmp
+    cores_online "$DEVICE_MAX_CORES_ONLINE" "$1"
+    lightmoss_set_policies performance 100 max
+    _gpu="$(lightmoss_set_gpu "$GPU_OVERCLOCK_GOVERNOR" "$LIGHTMOSS_GPU_OVERCLOCK_MAX_HZ")"
+    log_message "CPU Mode now locked to OVERCLOCK: cores $DEVICE_MAX_CORES_ONLINE at each cluster's top speed, GPU up to ${_gpu:-?} Hz"
+    flag_remove "setting_cpu"
 }
