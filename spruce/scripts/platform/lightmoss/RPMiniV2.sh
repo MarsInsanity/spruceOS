@@ -16,8 +16,9 @@
 # and no dArkMoss debug dump.
 device_init() {
     lightmoss_pad_is_a_joystick
-    rpminiv2_apply_trigger_mode
     resolve_pad_node
+    # After the pad is up: its driver's trigger_mode parameter exists from then.
+    rpminiv2_apply_trigger_mode
     log_message "$PLATFORM: spruce is ${SD_DEV:-<unresolved>} at $SD_MOUNTPOINT"
     resolve_key_event_node
     setup_mainui_alias

@@ -32,6 +32,10 @@ rpminiv2_leds() {
 }
 
 has_rgb_leds() {
+    # Only on a LightMoss that turns the lights off around suspend and at
+    # power-off (its leds helper and hooks): on older images the lights would
+    # stay lit through both, so the settings stay hidden there.
+    [ -x /usr/libexec/lightmoss/leds ] || return 1
     for _rl_d in "$RPMINIV2_LED_SYSFS"/*:[lr][1-4]; do
         [ -w "$_rl_d/multi_intensity" ] && return 0
     done

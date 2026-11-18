@@ -27,7 +27,18 @@ lightmoss_bt_controller() {
 device_bluetooth_supported() {
     command -v bluetoothctl >/dev/null 2>&1 || return 1
     [ -e /usr/lib/systemd/system/bluetooth.service ] || return 1
-    lightmoss_bt_controller
+    lightmoss_bt_controller && return 0
+    # hci_uart registers hci0 about when spruce starts: wait up to 3 s, once
+    # per boot, so a boot that gets here first does not leave Bluetooth off
+    # (and a board whose controller never comes does not wait on every call).
+    [ -e /tmp/rpminiv2_bt_waited ] && return 1
+    touch /tmp/rpminiv2_bt_waited 2>/dev/null
+    _bt_w=0
+    while ! lightmoss_bt_controller; do
+        [ "$_bt_w" -ge 30 ] && return 1
+        sleep 0.1; _bt_w=$((_bt_w + 1))
+    done
+    return 0
 }
 
 # dArkMossCommon's (systemctl, bluealsa with --keep-alive in a runtime
