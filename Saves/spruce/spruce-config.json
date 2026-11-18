@@ -1355,6 +1355,20 @@
                 ],
                 "changeCmd":"/mnt/SDCARD/spruce/smartpros/bin/update-thermal-watchdog-to-setting",
                 "selected": "Adaptive"
+            },
+            "fanModeRPMiniV2": {
+                "devices": ["RETROID_POCKET_MINI_V2"],
+                "display": "Fan Speed",
+                "description": "Off still runs the fan if the chip passes 75 C",
+                "options": [
+                    "Auto",
+                    "Quiet",
+                    "Performance",
+                    "Max",
+                    "Off"
+                ],
+                "changeCmd": "/mnt/SDCARD/spruce/scripts/platform/lightmoss/rpminiv2_fan.sh",
+                "selected": "Auto"
             }
         }
     }
