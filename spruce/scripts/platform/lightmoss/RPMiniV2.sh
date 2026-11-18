@@ -7,6 +7,8 @@
 . "/mnt/SDCARD/spruce/scripts/platform/darkmoss/dArkMossCommon.sh"
 . "/mnt/SDCARD/spruce/scripts/platform/lightmoss/rpminiv2_retroarch.sh"
 . "/mnt/SDCARD/spruce/scripts/platform/lightmoss/rpminiv2_triggers.sh"
+# Bluetooth: LightMoss's BlueZ and bluez-alsa 4 (replaces dArkMossCommon's).
+. "/mnt/SDCARD/spruce/scripts/platform/lightmoss/rpminiv2_bluetooth.sh"
 
 # dArkMossCommon's, without what belongs to Rockchip boards: no rk817 PMIC
 # clean-up (it writes I2C bus 0, address 0x20, which is something else here)
