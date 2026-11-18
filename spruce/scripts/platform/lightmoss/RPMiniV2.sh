@@ -30,9 +30,18 @@ device_init() {
     # at full level, and LightMoss keeps no mixer state across boots: until then
     # set_volume has no control to set, and PyUI's first sound came out at 100%.
     # A few milliseconds of silence create it, then the saved level goes on.
-    dd if=/dev/zero bs=4096 count=1 2>/dev/null |
-        aplay -q -D spruce_speaker -t raw -f S16_LE -c 2 -r 44100 >/dev/null 2>&1
-    set_volume "$(get_volume_level)" false
+    # Once LightMoss's audio service has routed the DSP's playback stream (it
+    # writes the headphone state after that): played before, the stream fails
+    # to start ("Routing not setup for MultiMedia-1 Session").
+    (
+        _w=0
+        while [ ! -e /run/lightmoss/headphones ] && [ "$_w" -lt 50 ]; do
+            sleep 0.1; _w=$((_w + 1))
+        done
+        dd if=/dev/zero bs=4096 count=1 2>/dev/null |
+            aplay -q -D spruce_speaker -t raw -f S16_LE -c 2 -r 44100 >/dev/null 2>&1
+        set_volume "$(get_volume_level)" false
+    ) &
     /mnt/SDCARD/spruce/scripts/bluetooth.sh boot &
     # A few times over the first seconds: LightMoss's audio service may still be
     # running ROCKNIX's UCM boot sequence, which sets the gain this undoes.
