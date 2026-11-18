@@ -26,6 +26,8 @@
 # PyUI has no default for these, so the cfg sets them: POWER_OFF_CMD, REBOOT_CMD (unset: no
 # reboot), CONTROLLER_EVENT_FORMAT, and STICK_DEADZONE when it has sticks (else PyUI ignores them).
 # WANTS_GLES_CONTEXT=true (cfg) asks SDL for an OpenGL ES EGL config, for a GLES-only GPU stack.
+# TOUCH_ROTATION (cfg) is the turn PyUI undoes on touch points when it is not SCREEN_ROTATION's:
+# 0 where the kernel already reports the UI's frame (RPMiniV2, rpminiv2_touch.sh). Unset: SCREEN_ROTATION.
 
 # Exports $1 with the value $2 unless the cfg already set it; an empty value stays unset.
 spruce_env_default() {
