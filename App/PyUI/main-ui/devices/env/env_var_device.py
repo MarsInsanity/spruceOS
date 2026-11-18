@@ -516,6 +516,11 @@ class EnvVarDevice(DeviceCommon):
     def might_require_surface_format_conversion(self):
         return os.environ.get("REQUIRES_SURFACE_FORMAT_CONVERSION", "false").lower() == "true"
 
+    # An OpenGL ES EGL config for the window, as the dArkMoss devices ask for:
+    # a GPU stack that only does GLES (no libGL) wants it set.
+    def wants_gles_context(self):
+        return os.environ.get("WANTS_GLES_CONTEXT", "false").lower() == "true"
+
     # Frees the image cache once available memory drops below this many MB.
     @throttle.limit_refresh(1)
     def post_present_operations(self):

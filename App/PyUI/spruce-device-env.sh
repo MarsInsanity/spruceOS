@@ -25,6 +25,7 @@
 #   ROMS/FAVORITES/RECENTS/APPS_CONFIG/COLLECTIONS/STATE_PATH  spruce's fixed paths
 # PyUI has no default for these, so the cfg sets them: POWER_OFF_CMD, REBOOT_CMD (unset: no
 # reboot), CONTROLLER_EVENT_FORMAT, and STICK_DEADZONE when it has sticks (else PyUI ignores them).
+# WANTS_GLES_CONTEXT=true (cfg) asks SDL for an OpenGL ES EGL config, for a GLES-only GPU stack.
 
 # Exports $1 with the value $2 unless the cfg already set it; an empty value stays unset.
 spruce_env_default() {
