@@ -142,8 +142,8 @@ RULES
 # LIGHTMOSS_SPEAKER_GAIN_DB: control value 84 + dB on its 0..124 scale
 # (-84..+40 dB). ROCKNIX's UCM boots it at 120, +36 dB, for PipeWire's software
 # volume to bring down; under spruce only softvol "Master" is in front of it,
-# and full-scale menu sounds clipped, painfully loud. Above 0 dB loud content
-# can still clip at full volume, so the codec's soft clippers go on with it.
+# and full-scale menu sounds clipped, painfully loud. The codec's soft
+# clippers stay off: with them on and +6 dB, music pumped on the device.
 # LightMoss sets 0 dB itself from 62af605; this covers the images before it.
 # It runs at boot and on every volume change (apply_playback_path), and logs
 # whenever it finds the gain anywhere else, so a log shows what moved it.
@@ -166,12 +166,6 @@ lightmoss_speaker_gain() {
             else
                 log_message "$PLATFORM: $_e is $((_v - 84)) dB and could not be set to $((_want - 84)) dB"
             fi
-        done
-        for _e in "WSA_Softclip0 Enable" "WSA_Softclip1 Enable"; do
-            case "$(amixer -c "$_n" cget name="$_e" 2>/dev/null | sed -n 's/.*: values=\(.*\)/\1/p')" in
-                on|1) continue ;;
-            esac
-            amixer -q -c "$_n" cset name="$_e" on 2>/dev/null && log_message "$PLATFORM: $_e on"
         done
     done
 }
