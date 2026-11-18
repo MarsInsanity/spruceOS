@@ -26,6 +26,13 @@ device_init() {
     # first so it is there before PyUI opens its audio, then bluetooth.sh boot as
     # dArkMossCommon's device_init runs it.
     /mnt/SDCARD/spruce/scripts/asound-setup.sh "$HOME" >/dev/null 2>&1
+    # alsa-lib creates "Master" the first time something plays through softvol,
+    # at full level, and LightMoss keeps no mixer state across boots: until then
+    # set_volume has no control to set, and PyUI's first sound came out at 100%.
+    # A few milliseconds of silence create it, then the saved level goes on.
+    dd if=/dev/zero bs=4096 count=1 2>/dev/null |
+        aplay -q -D spruce_speaker -t raw -f S16_LE -c 2 -r 44100 >/dev/null 2>&1
+    set_volume "$(get_volume_level)" false
     /mnt/SDCARD/spruce/scripts/bluetooth.sh boot &
     # A few times over the first seconds: LightMoss's audio service may still be
     # running ROCKNIX's UCM boot sequence, which sets the gain this undoes.
