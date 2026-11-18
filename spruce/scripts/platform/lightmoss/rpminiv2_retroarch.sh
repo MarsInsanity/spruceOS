@@ -90,6 +90,32 @@ set_default_ra_hotkeys() {
     rpminiv2_write_ra_hotkeys "$RA_FILE"
 }
 
+# rpminiv2_has_vulkan: whether this LightMoss has Vulkan: the Khronos loader and
+# an ICD manifest (Turnip's; its lib32 build ships the 32-bit pair alongside).
+rpminiv2_has_vulkan() {
+    [ -e /usr/lib/libvulkan.so.1 ] || return 1
+    for _rhv in /usr/share/vulkan/icd.d/*.json /etc/vulkan/icd.d/*.json; do
+        [ -e "$_rhv" ] && return 0
+    done
+    return 1
+}
+
+# rpminiv2_ra_vulkan_guard FILE: RetroArch's video driver back on "gl" when the
+# live config asks for "vulkan" (Settings > Drivers > Video) and this LightMoss
+# has no Vulkan: an image from before Turnip, such as the older system copy an
+# update falls back to. RetroArch quits when its video driver does not start,
+# so every game would end at once. Each start, before RetroArch reads it.
+rpminiv2_ra_vulkan_guard() {
+    [ "$(rpminiv2_ra_cfg_values "$1" video_driver)" = "vulkan" ] || return 0
+    rpminiv2_has_vulkan && return 0
+    if sed -e 's|^video_driver[[:space:]]*=.*$|video_driver = "gl"|' "$1" > "$1.rpminiv2.tmp" &&
+        [ -s "$1.rpminiv2.tmp" ] && mv -f "$1.rpminiv2.tmp" "$1"; then
+        log_message "$PLATFORM: RetroArch's video driver was vulkan, which this LightMoss does not have: gl"
+    else
+        rm -f "$1.rpminiv2.tmp"
+    fi
+}
+
 # REV KEY OLD NEW: a value a live config written from an older platform cfg
 # still holds, and what replaces it. Add a block with the next rev for a later
 # change; never edit a block that has shipped.
@@ -126,6 +152,7 @@ rpminiv2_migrate_ra_config() {
     _rmc_cfg="$1"
     # nothing to bring up to date yet: RetroArch writes it in full on exit
     [ -s "$_rmc_cfg" ] || return 0
+    rpminiv2_ra_vulkan_guard "$_rmc_cfg"
     _rmc_rev="$(cat "$RPMINIV2_RA_CFG_STAMP" 2>/dev/null)"
     case "$_rmc_rev" in ""|*[!0-9]*) _rmc_rev=0 ;; esac
     [ "$_rmc_rev" -ge "$RPMINIV2_RA_CFG_REV" ] && return 0
