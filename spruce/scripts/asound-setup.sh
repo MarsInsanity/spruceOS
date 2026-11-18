@@ -98,3 +98,9 @@ else
     device_write_default_asound_rc
     device_on_bt_audio_route
 fi
+_rc=$?
+
+# LightMoss (RPMiniV2.sh): the finished file is also its system-wide ALSA config,
+# for programs started with a HOME that has none. The exit status stays the one above.
+command -v lightmoss_publish_asound_rc >/dev/null 2>&1 && lightmoss_publish_asound_rc
+exit "$_rc"

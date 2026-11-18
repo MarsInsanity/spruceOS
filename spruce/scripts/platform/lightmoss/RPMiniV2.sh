@@ -26,14 +26,13 @@ device_init() {
     # softvol "Master" spruce's volume works on: always full volume. Written here
     # first so it is there before PyUI opens its audio, then bluetooth.sh boot as
     # dArkMossCommon's device_init runs it.
+    lightmoss_wait_for_audio
     /mnt/SDCARD/spruce/scripts/asound-setup.sh "$HOME" >/dev/null 2>&1
     # alsa-lib creates softvol's "Master" (at full level) when PyUI opens its
     # audio, and PyUI applies the saved volume right after, before any sound.
     # No priming: nothing needs to play before PyUI does.
     /mnt/SDCARD/spruce/scripts/bluetooth.sh boot &
-    # A few times over the first seconds: LightMoss's audio service may still be
-    # running ROCKNIX's UCM boot sequence, which sets the gain this undoes.
-    ( for _t in 0 3 5 10; do sleep "$_t"; lightmoss_speaker_gain; done ) &
+    lightmoss_speaker_gain
 }
 
 # softvol "Master" straight on hw:0,0 (the DSP's MultiMedia1 stream), without
@@ -45,11 +44,17 @@ device_init() {
 # closing the audio device waits for that thread. Without dmix one program
 # plays at a time: a second gets EBUSY instead of mixing in, and PyUI closes
 # its audio before a game starts.
+#
+# The card by its id rather than as card 0: snd-usb-audio is built into the
+# kernel and the SoC card only registers once the audio DSP is up, so a USB
+# DAC or headset attached at boot takes index 0, and Master and the output
+# would go to it (and nowhere once it is unplugged).
 device_write_default_asound_rc() {
     # spruce_menu: the menu's own output (PYUI_AUDIODEV, and bt_audio_device
     # below), its sounds LIGHTMOSS_MENU_SOUND_DB down before softvol. Everything
     # else - Songo, ports, aplay - plays to the default, spruce_speaker.
     _g="$(awk -v db="${LIGHTMOSS_MENU_SOUND_DB:-0}" 'BEGIN { printf "%.4f", 10 ^ (db / 20) }')"
+    _card="$(lightmoss_card_id)"
     cat > "$ASOUND_CONF" <<ASOUND
 pcm.spruce_speaker {
     type        plug
@@ -71,18 +76,62 @@ pcm.spruce_menu_level {
 
 ctl.!default {
     type        hw
-    card        0
+    card        $_card
 }
 
 pcm.softvol {
     type        softvol
-    slave.pcm   "hw:0,0"
+    slave.pcm   "hw:$_card,0"
     control {
         name    "Master"
-        card    0
+        card    $_card
     }
 }
 ASOUND
+}
+
+# The SoC sound card's id (RetroidPocket), or 0 if it is not there.
+lightmoss_card_id() {
+    for _c in /proc/asound/card[0-9]*; do
+        _id="$(cat "$_c/id" 2>/dev/null)"
+        case "$_id" in
+            RetroidPocket*) echo "$_id"; return 0 ;;
+        esac
+    done
+    echo 0
+}
+
+# Every program spruce starts with its own HOME gets this config as
+# $HOME/.asoundrc from asound-setup.sh; one started some other way (a port or
+# app that sets HOME itself, a shell) would play to the bare card, past
+# Master and the volume keys. LightMoss reads /run/lightmoss/asound.conf as
+# its system-wide config (/etc/asound.conf links to it), so asound-setup.sh
+# leaves its finished file there too: copied whole and renamed into place, so
+# no program reads half of it. Loaded twice when HOME has the same file, which
+# alsa-lib merges to the same thing.
+lightmoss_publish_asound_rc() {
+    [ -d /run/lightmoss ] && [ -f "$ASOUND_CONF" ] || return 0
+    # Only a finished file: asound-setup.sh names the default last.
+    tail -n 1 "$ASOUND_CONF" | grep -q '^pcm\.!default' || return 0
+    cp "$ASOUND_CONF" "/run/lightmoss/asound.conf.$$" 2>/dev/null &&
+        mv -f "/run/lightmoss/asound.conf.$$" /run/lightmoss/asound.conf
+    rm -f "/run/lightmoss/asound.conf.$$" 2>/dev/null
+}
+
+# LightMoss sets the card up and routes hw:0,0 before it starts spruce, once
+# lightmoss-audio is a oneshot. Its earlier images start spruce while the card
+# is still being set up: wait for the route (its state file), up to 5 s, so
+# PyUI does not open hw:0,0 unrouted and the card is there to be named in the
+# ALSA config. Immediate on the newer images.
+lightmoss_wait_for_audio() {
+    [ -x /usr/libexec/lightmoss/audio ] || return 0
+    _n=0
+    while [ ! -e /run/lightmoss/headphones ] && [ "$_n" -lt 25 ]; do
+        sleep 0.2
+        _n=$((_n + 1))
+    done
+    [ -e /run/lightmoss/headphones ] ||
+        log_message "$PLATFORM: LightMoss's sound card is not set up after 5 s"
 }
 
 # PyUI asks this (get-bt-audio-device.sh) which ALSA device to play to and
@@ -247,8 +296,9 @@ resolve_key_event_node() {
 # and full-scale menu sounds clipped, painfully loud. The codec's soft
 # clippers stay off: with them on and +6 dB, music pumped on the device.
 # LightMoss sets 0 dB itself from 62af605; this covers the images before it.
-# It runs at boot and on every volume change (apply_playback_path), and logs
-# whenever it finds the gain anywhere else, so a log shows what moved it.
+# It runs at boot, once the card is set up (lightmoss_wait_for_audio), and on
+# every volume change (apply_playback_path), and logs whenever it finds the
+# gain anywhere else, so a log shows what moved it.
 lightmoss_speaker_gain() {
     _want=$((84 + ${LIGHTMOSS_SPEAKER_GAIN_DB:-0}))
     for _c in /proc/asound/card[0-9]*; do
@@ -286,8 +336,9 @@ device_get_fw_version() {
 }
 
 # LightMoss's lightmoss-audio routes hw:0,0 to the headphones or the speakers
-# by the jack itself: no codec path for spruce to set. set_volume calls this
-# on every change, which makes it the place to keep the speakers' gain right.
+# by the jack itself (and writes HEADPHONE_STATE_PATH): no codec path for
+# spruce to set. set_volume calls this on every change, which makes it the
+# place to keep the speakers' gain right.
 apply_playback_path() {
     lightmoss_speaker_gain
 }
