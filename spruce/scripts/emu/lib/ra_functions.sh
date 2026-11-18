@@ -56,6 +56,8 @@ prepare_ra_config() {
 		ensure_ra_config_path >/dev/null
 		[ -f "$PLATFORM_CFG" ] && log_message "$PLATFORM_CFG seeded from .bak file."
 	fi
+	# RPMiniV2 (rpminiv2_retroarch.sh): an existing live config follows .bak fixes once
+	command -v rpminiv2_migrate_ra_config >/dev/null 2>&1 && rpminiv2_migrate_ra_config "$PLATFORM_CFG"
 
 	# Set up RetroAchievements based on spruceUI config
 	rac_mode="$(get_config_value '.menuOptions."RetroAchievements Settings".modeToggle.selected' "Manual")"
