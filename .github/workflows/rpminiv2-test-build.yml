@@ -119,6 +119,7 @@ jobs:
             -x!create_spruce_release.bat \
             -x!create_spruce_release.sh \
             -x!commits_nightly.txt \
+            -x!CLAUDE.md \
             -x!To-Do.txt
 
           7z u "spruceV${{ steps.get_version.outputs.version }}.7z" commits_nightly.txt
