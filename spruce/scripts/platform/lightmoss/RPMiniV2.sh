@@ -40,18 +40,36 @@ device_init() {
 # dArkMoss's dmix. On the device every session with dmix in the path had PyUI
 # hang on its way out to a game: it closed its window (tty1 showed through)
 # and never exited, so spruce never started the game. The one session with no
-# ALSA config from spruce at all handed over normally. A dmix stream on the q6asm PCM that
-# stops advancing would leave SDL's audio thread blocked, and closing the
-# audio device waits for that thread. Without dmix one program plays at a
-# time: a second gets EBUSY instead of mixing in, and PyUI closes its audio
-# before a game starts.
+# ALSA config from spruce at all handed over normally. A dmix stream on the
+# q6asm PCM that stops advancing would leave SDL's audio thread blocked, and
+# closing the audio device waits for that thread. Without dmix one program
+# plays at a time: a second gets EBUSY instead of mixing in, and PyUI closes
+# its audio before a game starts.
 device_write_default_asound_rc() {
+    # The menu's config ($HOME is /mnt/SDCARD; RetroArch's is in its own dir,
+    # standalone emulators set their own $HOME) turns its sounds down by
+    # LIGHTMOSS_MENU_SOUND_DB before softvol.
+    _first="softvol"
+    _menu_level=""
+    if [ "$ASOUND_CONF" = "/mnt/SDCARD/.asoundrc" ] && [ "${LIGHTMOSS_MENU_SOUND_DB:-0}" != 0 ]; then
+        _g="$(awk -v db="$LIGHTMOSS_MENU_SOUND_DB" 'BEGIN { printf "%.4f", 10 ^ (db / 20) }')"
+        _first="spruce_menu_level"
+        _menu_level="
+pcm.spruce_menu_level {
+    type        route
+    slave.pcm   \"softvol\"
+    slave.channels 2
+    ttable.0.0  $_g
+    ttable.1.1  $_g
+}
+"
+    fi
     cat > "$ASOUND_CONF" <<ASOUND
 pcm.spruce_speaker {
     type        plug
-    slave.pcm   "softvol"
+    slave.pcm   "$_first"
 }
-
+$_menu_level
 ctl.!default {
     type        hw
     card        0
@@ -102,14 +120,17 @@ RULES
     done
 }
 
-# The speakers' digital gain (WSA_RX0/RX1 Digital Volume) at 0 dB: control
-# value 84 on its 0..124 scale (-84..+40 dB). ROCKNIX's UCM boots it at 120,
-# +36 dB, for PipeWire's software volume to bring down; under spruce only
-# softvol "Master" is in front of it, and a full-scale menu sound clips.
-# LightMoss does this itself from 62af605; this covers the images before it.
+# The speakers' digital gain (WSA_RX0/RX1 Digital Volume) at
+# LIGHTMOSS_SPEAKER_GAIN_DB: control value 84 + dB on its 0..124 scale
+# (-84..+40 dB). ROCKNIX's UCM boots it at 120, +36 dB, for PipeWire's software
+# volume to bring down; under spruce only softvol "Master" is in front of it,
+# and full-scale menu sounds clipped, painfully loud. Above 0 dB loud content
+# can still clip at full volume, so the codec's soft clippers go on with it.
+# LightMoss sets 0 dB itself from 62af605; this covers the images before it.
 # It runs at boot and on every volume change (apply_playback_path), and logs
 # whenever it finds the gain anywhere else, so a log shows what moved it.
 lightmoss_speaker_gain() {
+    _want=$((84 + ${LIGHTMOSS_SPEAKER_GAIN_DB:-0}))
     for _c in /proc/asound/card[0-9]*; do
         case "$(cat "$_c/id" 2>/dev/null)" in
             RetroidPocket*) ;;
@@ -119,14 +140,20 @@ lightmoss_speaker_gain() {
         for _e in "WSA_RX0 Digital Volume" "WSA_RX1 Digital Volume"; do
             _v="$(amixer -c "$_n" cget name="$_e" 2>/dev/null | sed -n 's/.*: values=\([0-9]*\).*/\1/p')"
             case "$_v" in
-                84) continue ;;
+                "$_want") continue ;;
                 "") log_message "$PLATFORM: could not read $_e"; continue ;;
             esac
-            if amixer -q -c "$_n" cset name="$_e" 84 2>/dev/null; then
-                log_message "$PLATFORM: $_e was $((_v - 84)) dB, set to 0 dB"
+            if amixer -q -c "$_n" cset name="$_e" "$_want" 2>/dev/null; then
+                log_message "$PLATFORM: $_e was $((_v - 84)) dB, set to $((_want - 84)) dB"
             else
-                log_message "$PLATFORM: $_e is $((_v - 84)) dB and could not be set to 0 dB"
+                log_message "$PLATFORM: $_e is $((_v - 84)) dB and could not be set to $((_want - 84)) dB"
             fi
+        done
+        for _e in "WSA_Softclip0 Enable" "WSA_Softclip1 Enable"; do
+            case "$(amixer -c "$_n" cget name="$_e" 2>/dev/null | sed -n 's/.*: values=\(.*\)/\1/p')" in
+                on|1) continue ;;
+            esac
+            amixer -q -c "$_n" cset name="$_e" on 2>/dev/null && log_message "$PLATFORM: $_e on"
         done
     done
 }
