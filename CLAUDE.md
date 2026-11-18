@@ -26,11 +26,18 @@ After the merge:
   `spruce/scripts/helperFunctions.sh` (the `RPMiniV2)` entry of `device_names`), `App/PyUI/launch.sh`,
   `App/PyUI/spruce-device-env.sh`, `App/PyUI/main-ui/devices/env/env_var_device.py`,
   `App/PyUI/main-ui/controller/touch_watcher.py`, `spruce/scripts/asound-setup.sh`, `spruce/scripts/bluetooth.sh`,
-  `spruce/scripts/emu/lib/*_functions.sh`, `Saves/spruce/spruce-config.json`
+  `spruce/scripts/emu/lib/*_functions.sh`, `Saves/spruce/spruce-config.json`, and the over-the-air path:
+  `App/-OTA/downloader.sh`, `App/-Updater/updater.py`, `check_for_update` in `spruce/scripts/runtimeHelper.sh`
+  (RPMiniV2 updates from this fork's feed through their `SPRUCE_OTA_URL`/`_CHANNEL`/`_TYPE` overrides; the feed is
+  written by `.github/workflows/rpminiv2-test-build.yml` to branch `rpminiv2-ota` and names each build like an upstream
+  nightly, `<base>-<YYYYMMDD>`)
   (`git diff <old merge base> upstream/Development -- <file>`). A function RPMiniV2 overrides that upstream renamed
   or changed in meaning is a silent break.
 - Check: `busybox sh -n` (and `shellcheck -s sh -S error`) on changed shell scripts, `jq empty` on changed JSON,
   `python3 -m py_compile` on changed PyUI files. Some PyUI files use CRLF line endings: keep them byte for byte.
+
+Also keep the fork's default branch `Development` an exact mirror of upstream's: when it is behind and has nothing of its own,
+fast-forward it (`git push origin upstream/Development:refs/heads/Development`), so the fork never shows "commits behind".
 
 Push only to `origin` (this fork), never to spruceUI, and open no pull requests upstream. A push to `mofang` publishes
 the `RPMiniV2` pre-release (`.github/workflows/rpminiv2-test-build.yml`); keep spruce releases from this fork
