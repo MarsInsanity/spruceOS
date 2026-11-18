@@ -128,9 +128,14 @@ take_screenshot() {
     done
     [ -n "$_ff" ] || { log_message "take_screenshot: no ffmpeg with kmsgrab available"; return 1; }
     mkdir -p "$(dirname "$screenshot_path")" 2>/dev/null
-    if timeout 15 "$_ff" -hide_banner -loglevel error -f kmsgrab -i - \
+    # On the device two Game Switcher screenshots outlived timeout's SIGTERM by
+    # minutes, the game left running behind them. Under LightMoss spruce's
+    # stdin is tty1, and an ffmpeg that sets up the terminal from outside its
+    # foreground group is stopped (SIGTTOU), where SIGTERM does nothing: so
+    # -nostdin and </dev/null, and SIGKILL for one that hangs anyway.
+    if timeout -s KILL 15 "$_ff" -nostdin -hide_banner -loglevel error -f kmsgrab -i - \
         -vf "hwdownload,format=bgr0,format=rgba,transpose=2" \
-        -frames:v 1 -update 1 -y "$screenshot_path" >/dev/null 2>&1; then
+        -frames:v 1 -update 1 -y "$screenshot_path" </dev/null >/dev/null 2>&1; then
         return 0
     fi
     rm -f "$screenshot_path" 2>/dev/null
