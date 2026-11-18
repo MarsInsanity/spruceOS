@@ -20,7 +20,7 @@ run_drastic() {
 	/mnt/SDCARD/spruce/scripts/asound-setup.sh "$HOME"
 	case "$PLATFORM_FAMILY" in
 		"h700")		run_drastic_AnbernicH700 ;;
-		"darkmoss") run_drastic_DarkMoss ;;
+		"darkmoss"|"lightmoss") run_drastic_DarkMoss ;; # lightmoss: the Retroid Pocket Mini V2
 		"oakmoss")	# a board's own function wins over the shared one (the Brick on oakMOSS runs the Brick's)
 			if command -v "run_drastic_$PLATFORM" >/dev/null; then run_drastic_$PLATFORM; else run_drastic_OakMoss; fi ;;
 		*)			run_drastic_$PLATFORM  ;; # shell expands this to appropriate real function
@@ -177,7 +177,10 @@ run_drastic_AnbernicH700() { run_drastic64 ; }
 ##### DARKMOSS #####
 
 # The unmodified 64-bit DraStic. It draws through the system SDL, which already
-# turns the picture on the rotated panels (A10 Mini V4, V10, XU Mini M).
+# turns the picture on the rotated panels (A10 Mini V4, V10, XU Mini M). The
+# Retroid Pocket Mini V2 (family lightmoss) runs it too: LightMoss's SDL turns
+# its portrait panel with the display plane. Without that case run_drastic
+# called run_drastic_RPMiniV2, which does not exist, and nothing launched.
 run_drastic_DarkMoss() { run_drastic64 ; }
 
 

@@ -57,6 +57,14 @@ run_gvu() {
 		export GVU_DISPLAY_ROTATION=180
 	fi
 
+	# Retroid Pocket Mini V2: like the Miniloong, DRM hands GVU the panel's
+	# 1080x1240 portrait mode, and LightMoss's plane rotation is SDL's, which
+	# GVU does not use. GVU turns its 1240x1080 canvas clockwise for 90, as
+	# PyUI does for its SCREEN_ROTATION, so it follows the menu's value.
+	if [ "$PLATFORM" = "RPMiniV2" ]; then
+		export GVU_DISPLAY_ROTATION="${SCREEN_ROTATION:-90}"
+	fi
+
 	if [ "$PLATFORM" = "MiyooMini" ]; then
 		export GVU_DISPLAY_ROTATION=180
 		# GVU_DISPLAY_W/H above: the model overlay sets the V4 and Mini Flip panel
@@ -84,9 +92,10 @@ run_ffplay() {
 		export PATH="$EMU_DIR"/bin64:"$PATH"
 		export LD_LIBRARY_PATH="$LD_LIBRARY_PATH":"$EMU_DIR"/lib64
 		# gptokeyb speaks SDL's positional names; the H700 pad needs spruce's map
-		# to be a game controller at all.
+		# to be a game controller at all, and SDL's own map for the Retroid pad
+		# swaps L2/R2.
 		case "$PLATFORM" in
-			"Anbernic"*) export_sdl_gamecontroller_map positional ;;
+			"Anbernic"*|RPMiniV2) export_sdl_gamecontroller_map positional ;;
 		esac
 		/mnt/SDCARD/spruce/bin64/gptokeyb -k "ffplay" -c "./bin64/ffplay.gptk" &
 		sleep 1

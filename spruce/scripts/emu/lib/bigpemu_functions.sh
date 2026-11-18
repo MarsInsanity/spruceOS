@@ -50,9 +50,10 @@ with zipfile.ZipFile(sys.argv[1]) as z: z.extractall(sys.argv[2])
 
     # Pad -> keyboard bridge (BigPEmu reads its own keyboard bindings).
     # gptokeyb2 needs the pad to be an SDL game controller; the H700 pad has
-    # no built-in map, and .gptk files speak SDL's positional names.
+    # no built-in map, and .gptk files speak SDL's positional names. The
+    # Retroid pad (RPMiniV2) has none either; SDL's own one swaps L2/R2.
     case "$PLATFORM" in
-        "Anbernic"*) export_sdl_gamecontroller_map positional ;;
+        "Anbernic"*|RPMiniV2) export_sdl_gamecontroller_map positional ;;
     esac
     if [ -x ./gptokeyb2 ]; then
         ./gptokeyb2 "bigpemu" -c "./bigpemu.gptk" &

@@ -95,6 +95,24 @@ run_ppsspp() {
 			export SDL_VIDEODRIVER=mali
 			export_sdl_gamecontroller_map positional
 			;;
+		# Retroid Pocket Mini V2 (LightMoss): neither SDL nor PPSSPP's database
+		# has a Linux row for the pad, so SDL made its own, which put Cross on
+		# the right-hand button and swapped L2/R2. controls-RPMiniV2.ini is the
+		# E5 Plus's, written for a label-named map (SDL A = Circle on the
+		# right, B = Cross at the bottom), so hand SDL the board's map in that
+		# form. And a longer audio buffer: with no dmix in front, 256-frame
+		# periods are shorter than the DSP's stream keeps up with (512 failed
+		# for Godot, 2048 works), so raise anything under 1000 frames.
+		"RPMiniV2")
+			export_sdl_gamecontroller_map
+			TMP_CFG="$(mktemp)"
+			if sed -e 's|^AudioBufferSize = [0-9]\{1,3\}$|AudioBufferSize = 2048|' \
+				"$PPSSPP_LIVE_SYSTEM_DIR/ppsspp.ini" > "$TMP_CFG"; then
+				mv "$TMP_CFG" "$PPSSPP_LIVE_SYSTEM_DIR/ppsspp.ini"
+			else
+				rm -f "$TMP_CFG"
+			fi
+			;;
 	esac
 
 	# accommodate both relative and absolute paths for PPSSPP bin location
