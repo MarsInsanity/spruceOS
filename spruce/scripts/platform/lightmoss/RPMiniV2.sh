@@ -19,6 +19,14 @@ device_init() {
     fi
     set_backlight "$(get_backlight_level)"
     darkmoss_wifi_up
+    # The ALSA config: runtime.sh removes $HOME/.asoundrc before device_init, and
+    # on dArkMoss bluetooth.sh boot writes it again (asound-setup.sh, also with
+    # Bluetooth unsupported). Without it PyUI played to hw:0,0 directly, past the
+    # softvol "Master" spruce's volume works on: always full volume. Written here
+    # first so it is there before PyUI opens its audio, then bluetooth.sh boot as
+    # dArkMossCommon's device_init runs it.
+    /mnt/SDCARD/spruce/scripts/asound-setup.sh "$HOME" >/dev/null 2>&1
+    /mnt/SDCARD/spruce/scripts/bluetooth.sh boot &
     # A few times over the first seconds: LightMoss's audio service may still be
     # running ROCKNIX's UCM boot sequence, which sets the gain this undoes.
     ( for _t in 0 3 5 10; do sleep "$_t"; lightmoss_speaker_gain; done ) &
