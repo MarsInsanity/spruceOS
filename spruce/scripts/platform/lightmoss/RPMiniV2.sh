@@ -46,30 +46,29 @@ device_init() {
 # plays at a time: a second gets EBUSY instead of mixing in, and PyUI closes
 # its audio before a game starts.
 device_write_default_asound_rc() {
-    # The menu's config ($HOME is /mnt/SDCARD; RetroArch's is in its own dir,
-    # standalone emulators set their own $HOME) turns its sounds down by
-    # LIGHTMOSS_MENU_SOUND_DB before softvol.
-    _first="softvol"
-    _menu_level=""
-    if [ "$ASOUND_CONF" = "/mnt/SDCARD/.asoundrc" ] && [ "${LIGHTMOSS_MENU_SOUND_DB:-0}" != 0 ]; then
-        _g="$(awk -v db="$LIGHTMOSS_MENU_SOUND_DB" 'BEGIN { printf "%.4f", 10 ^ (db / 20) }')"
-        _first="spruce_menu_level"
-        _menu_level="
+    # spruce_menu: the menu's own output (PYUI_AUDIODEV, and bt_audio_device
+    # below), its sounds LIGHTMOSS_MENU_SOUND_DB down before softvol. Everything
+    # else - Songo, ports, aplay - plays to the default, spruce_speaker.
+    _g="$(awk -v db="${LIGHTMOSS_MENU_SOUND_DB:-0}" 'BEGIN { printf "%.4f", 10 ^ (db / 20) }')"
+    cat > "$ASOUND_CONF" <<ASOUND
+pcm.spruce_speaker {
+    type        plug
+    slave.pcm   "softvol"
+}
+
+pcm.spruce_menu {
+    type        plug
+    slave.pcm   "spruce_menu_level"
+}
+
 pcm.spruce_menu_level {
     type        route
-    slave.pcm   \"softvol\"
+    slave.pcm   "softvol"
     slave.channels 2
     ttable.0.0  $_g
     ttable.1.1  $_g
 }
-"
-    fi
-    cat > "$ASOUND_CONF" <<ASOUND
-pcm.spruce_speaker {
-    type        plug
-    slave.pcm   "$_first"
-}
-$_menu_level
+
 ctl.!default {
     type        hw
     card        0
@@ -84,6 +83,25 @@ pcm.softvol {
     }
 }
 ASOUND
+}
+
+# PyUI asks this (get-bt-audio-device.sh) which ALSA device to play to and
+# sets AUDIODEV to it: a USB card or Bluetooth headset as on every board, and
+# for the speakers spruce_menu rather than spruce_speaker, so the menu's own
+# sounds stay turned down when it changes route.
+bt_audio_device() {
+    if usb_audio_read_route; then
+        # shellcheck disable=SC2086 # card, device and usbbus, split on purpose
+        set -- $usb_routed
+        echo "plughw:$1,$2"
+        return 0
+    fi
+    grep -q "^pcm.spruce_bt" "$HOME/.asoundrc" 2>/dev/null || return 0
+    if bt_audio_ready && bt_connected_audio_mac >/dev/null; then
+        echo spruce_bt
+    else
+        echo spruce_menu
+    fi
 }
 
 # The pad reports BTN_BACK (0x116) besides its gamepad buttons, and that code

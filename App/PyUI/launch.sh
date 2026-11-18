@@ -253,6 +253,9 @@ case "$PLATFORM" in
         # evidence available that they are the working combination.
         export SDL_VIDEODRIVER=kmsdrm
         export SDL_AUDIODRIVER=alsa
+        # A board's cfg can name the menu's own ALSA output (RPMiniV2: spruce_menu,
+        # its sounds turned down; games keep the default).
+        [ -n "$PYUI_AUDIODEV" ] && export AUDIODEV="$PYUI_AUDIODEV"
 
         # LightMoss boards (RPMiniV2) have no Python device class: their cfg sets
         # PYUI_ENV_DEVICE=true, and the env-driven ENV_VAR device reads them.
