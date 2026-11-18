@@ -10,6 +10,7 @@
 # clean-up (it writes I2C bus 0, address 0x20, which is something else here)
 # and no dArkMoss debug dump.
 device_init() {
+    lightmoss_pad_is_a_joystick
     resolve_pad_node
     log_message "$PLATFORM: spruce is ${SD_DEV:-<unresolved>} at $SD_MOUNTPOINT"
     resolve_key_event_node
@@ -65,6 +66,40 @@ pcm.softvol {
     }
 }
 ASOUND
+}
+
+# The pad reports BTN_BACK (0x116) besides its gamepad buttons, and that code
+# is in the mouse button range (BTN_MOUSE..BTN_JOYSTICK): udev's input_id then
+# takes a device with ABS_X/ABS_Y and a mouse button for an absolute mouse
+# (the VMware USB mouse case) and never tags it ID_INPUT_JOYSTICK. RetroArch's
+# udev joypad driver, and SDL in ports and standalone emulators, only look at
+# joysticks: on the device RetroArch listed the pad as "Mouse/Touch" and no
+# control worked in a game. A runtime rule after 60-input-id.rules says what it
+# is, and a change event applies it now. LightMoss ships the same rule from its
+# next image; this covers the ones before.
+lightmoss_pad_is_a_joystick() {
+    _rules=/run/udev/rules.d/61-lightmoss-retroid-pad.rules
+    command -v udevadm >/dev/null 2>&1 || return 0
+    [ -e /usr/lib/udev/rules.d/61-lightmoss-retroid-pad.rules ] && return 0
+    if [ ! -f "$_rules" ]; then
+        mkdir -p /run/udev/rules.d
+        cat > "$_rules" <<'RULES'
+# Written by spruce (RPMiniV2.sh). The Retroid pad's BTN_BACK sits in the mouse
+# button range, so input_id calls it an absolute mouse: it is a gamepad.
+ACTION!="remove", SUBSYSTEM=="input", ATTRS{name}=="Retroid Pocket Gamepad", ENV{ID_INPUT_MOUSE}="", ENV{ID_INPUT_JOYSTICK}="1"
+RULES
+        udevadm control --reload >/dev/null 2>&1
+    fi
+    udevadm trigger --action=change --subsystem-match=input >/dev/null 2>&1
+    udevadm settle --timeout=3 >/dev/null 2>&1
+    for _d in /sys/class/input/event*; do
+        [ "$(cat "$_d/device/name" 2>/dev/null)" = "Retroid Pocket Gamepad" ] || continue
+        if udevadm info -q property -p "$_d" 2>/dev/null | grep -q '^ID_INPUT_JOYSTICK=1$'; then
+            log_message "$PLATFORM: pad ${_d##*/} tagged as a joystick for udev"
+        else
+            log_message "$PLATFORM: pad ${_d##*/} is still not a joystick for udev"
+        fi
+    done
 }
 
 # The speakers' digital gain (WSA_RX0/RX1 Digital Volume) at 0 dB: control
