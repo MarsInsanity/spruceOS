@@ -28,7 +28,10 @@ GPTK_SP="${XR_GPTK}/${GAME_BN}.gptk"
 [ ! -f "$GPTK_SP" ] && GPTK_SP="${XR_GPTK}/$XROAR_BIN.gptk"
 
 gptokeyb -k "$XROAR_BIN" -c "$GPTK_SP" &
+XR_GPTK_PID=$!
 
 "$EMU_DIR/$XROAR_BIN" -c "$EMU_DIR/$XROAR_BIN.conf" -default-machine coco2bus "$ROM_FILE" > "$(emu_log_file)" 2>&1
+
+kill -9 "$XR_GPTK_PID" 2>/dev/null
 
 }

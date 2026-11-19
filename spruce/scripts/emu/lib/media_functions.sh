@@ -74,6 +74,7 @@ run_gvu() {
 }
 
 run_ffplay() {
+	FF_GPTK_PID=""
 	export HOME=$EMU_DIR
 	cd $EMU_DIR
 	/mnt/SDCARD/spruce/scripts/asound-setup.sh "$HOME"
@@ -90,11 +91,12 @@ run_ffplay() {
 			"Anbernic"*) export_sdl_gamecontroller_map positional ;;
 		esac
 		/mnt/SDCARD/spruce/bin64/gptokeyb -k "ffplay" -c "./bin64/ffplay.gptk" &
+		FF_GPTK_PID=$!
 		sleep 1
 		ffplay -x $DISPLAY_WIDTH -y $DISPLAY_HEIGHT -fs -loglevel 24 -i "$ROM_FILE" > $(emu_log_file) 2>&1
 	fi
 
-	kill -9 "$(pidof gptokeyb)"
+	[ -n "$FF_GPTK_PID" ] && kill -9 "$FF_GPTK_PID" 2>/dev/null
 }
 
 set_hw_vo() {
@@ -139,6 +141,7 @@ run_mpv() {
 	printf 'VOLUME_UP ignore\nVOLUME_DOWN ignore' > $INPUT_CONF
 
 	gptokeyb -k "mpv" -c "./mpv.gptk" &
+	MPV_GPTK_PID=$!
 	sleep 0.5
 
 	/usr/bin/mpv --profile=fast --fs --geometry="640x480" --hwdec=rkmpp \
@@ -146,5 +149,5 @@ run_mpv() {
 				 --input-conf=$INPUT_CONF --msg-level=all=warn \
 				"$ROM_FILE" > $(emu_log_file) 2>&1
 
-	kill -9 "$(pidof gptokeyb)"
+	kill -9 "$MPV_GPTK_PID" 2>/dev/null
 }
