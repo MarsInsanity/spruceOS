@@ -154,6 +154,16 @@ kill_vtree() {
     killall -q -9 vtree.a30 vtree.mini vtree.aarch64
 }
 
+# Songo#5 (App/Songo#5) runs as a Godot runtime named after its build. Without
+# a case here the Game Switcher and "Exit game" signalled nothing in Songo, so
+# holding MENU left it running with nothing on screen to come back to.
+kill_songo() {
+    log_message "button_actions.sh: Killing Songo!"
+    killall -q -15 sbc_4_3_rcv12
+    sleep 2
+    killall -q -9 sbc_4_3_rcv12
+}
+
 kill_grout() {
     log_message "button_actions.sh: Killing Grout!"
     killall -q -15 grout32 grout64
@@ -180,6 +190,8 @@ kill_emulator() {
         kill_vtree
     elif pgrep -f "grout32|grout64" >/dev/null; then
         kill_grout
+    elif pgrep sbc_4_3_rcv12 >/dev/null; then
+        kill_songo
     else
         kill_ra_and_standard_emulators
     fi
