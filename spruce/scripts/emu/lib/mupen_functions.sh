@@ -29,6 +29,33 @@ get_cfg_value() {
 	echo "${result:-$3}"
 }
 
+# RG351P (480x320): the overlay menu built into the video plugins has a minimum
+# UI scale of 2 (layout and fonts sized for 640x480). Its six rows are centred
+# in the 320px height and land on the "spruceOS Menu" title. Nothing in the
+# environment or config lowers it, so the RG351P loads a copy of the plugin
+# with both "add w0,w0,#2" sites (layout scale, font scale) changed to #1.
+# The stock .so is never modified; the copy is made only if the original
+# bytes match, else the stock plugin is used.
+rg351p_overlay_plugin() {
+	_src="$HOME/$1"
+	case "$1" in
+		*rice.so)       _offs="0x14474 0x2192c" ;;
+		*glide64mk2.so) _offs="0x30c80 0x3315c" ;;
+		*GLideN64.so)   _offs="0x10a330 0x1033f4" ;;
+		*) return 1 ;;
+	esac
+	_dst="$HOME/rg351p/$1"
+	[ -f "$_dst" ] && [ "$_dst" -nt "$_src" ] && { echo "$_dst"; return 0; }
+	mkdir -p "$HOME/rg351p" && cp -f "$_src" "$_dst.tmp" || return 1
+	for _o in $_offs; do
+		[ "$(od -An -tx1 -j $((_o)) -N4 "$_dst.tmp" | tr -d ' \n')" = "00080011" ] || { rm -f "$_dst.tmp"; return 1; }
+	done
+	for _o in $_offs; do
+		printf '\000\004\000\021' | dd of="$_dst.tmp" bs=1 seek=$((_o)) conv=notrunc 2>/dev/null || { rm -f "$_dst.tmp"; return 1; }
+	done
+	mv -f "$_dst.tmp" "$_dst" && echo "$_dst"
+}
+
 # Build launch args from current config. Called before each launch so
 # a restart picks up any settings changed via the overlay menu.
 build_mupen_args() {
@@ -68,6 +95,14 @@ build_mupen_args() {
 		gliden64) GFX_PLUGIN="mupen64plus-video-GLideN64.so" ;;
 		*) GFX_PLUGIN="mupen64plus-video-rice.so" ;;
 	esac
+
+	if [ "$PLATFORM" = "RG351P" ]; then
+		if _ovl="$(rg351p_overlay_plugin "$GFX_PLUGIN")"; then
+			GFX_PLUGIN="$_ovl"
+		else
+			log_message "mupen_functions.sh: overlay scale patch does not match $GFX_PLUGIN; using the stock plugin"
+		fi
+	fi
 
 	if [ "$PLATFORM" = "A30" ]; then
 		ARGS="--gfx $GFX_PLUGIN --resolution 480x360"
