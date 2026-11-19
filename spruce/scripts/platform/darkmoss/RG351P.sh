@@ -307,22 +307,101 @@ vibrate() {
 # newer wake superseded it or a new sleep began (sleep_helper's directory is
 # back), and the restart itself runs under a lock directory, so overlapping
 # re-arms never start two sets of watchdogs.
+# Songo#5's Godot runtime draws through its own librga (RGA rotates the
+# picture for this portrait panel) and keeps animating; one suspended with a
+# rotation job in flight came back with a frozen picture while its audio
+# thread kept playing. Pause it across a sleep like the emulators
+# (signal_emulators STOP/CONT); save_poweroff also closes it like one.
+case " $EMU_PROCESSES " in
+    *" sbc_4_3_rcv12 "*) ;;
+    *) EMU_PROCESSES="$EMU_PROCESSES sbc_4_3_rcv12" ;;
+esac
+
 RG351P_PAD_NAME="OpenSimHardware OSH PB Controller"
 RG351P_PAD_INPUT_FILE="/tmp/rg351p_pad_input"
 RG351P_REARM_GEN_FILE="/tmp/rg351p_rearm_gen"
 RG351P_REARM_LOCK="/tmp/rg351p_rearm.lock"
 
-_rg351p_pad_input_id() {
-    for _dir in /sys/class/input/event*; do
-        _name=""
-        read -r _name 2>/dev/null < "$_dir/device/name"
-        [ "$_name" = "$RG351P_PAD_NAME" ] || continue
-        _id="$(readlink -f "$_dir/device" 2>/dev/null)"
-        [ -n "$_id" ] || continue
-        echo "${_id##*/}"
-        return 0
+# Pad proxy (rg351p_padproxy.py): the pad loses power in suspend and comes back
+# as a new input device on every wake, and programs that open it once (vtree,
+# Songo, most SDL apps) keep the dead one. The proxy grabs the real pad and
+# mirrors it into a virtual one with the same name and IDs that never goes
+# away; a runtime udev rule hides the real pad from joystick scans meanwhile.
+# The virtual device's phys is "rg351p-padproxy". Supervised by a shell loop
+# that removes the rule whenever the proxy exits, so a crash can never leave
+# games without a joystick; it gives up after 5 quick failures in a row.
+RG351P_PADPROXY="/mnt/SDCARD/spruce/scripts/platform/darkmoss/rg351p_padproxy.py"
+RG351P_PADPROXY_PID="/tmp/rg351p_padproxy.pid"
+RG351P_PADPROXY_LOG="/mnt/SDCARD/Saves/spruce/rg351p-padproxy.log"
+RG351P_PADPROXY_PHYS="rg351p-padproxy"
+RG351P_PADPROXY_RULE="/run/udev/rules.d/99-rg351p-padproxy.rules"
+
+_rg351p_padproxy_alive() {
+    _rg351p_pp=""
+    read -r _rg351p_pp 2>/dev/null < "$RG351P_PADPROXY_PID"
+    [ -n "$_rg351p_pp" ] && kill -0 "$_rg351p_pp" 2>/dev/null
+}
+
+_rg351p_padproxy_start() {
+    _rg351p_padproxy_alive && return 0
+    [ -x /usr/bin/python3 ] && [ -e /dev/uinput ] && [ -f "$RG351P_PADPROXY" ] || return 1
+    : > "$RG351P_PADPROXY_LOG" 2>/dev/null
+    (
+        trap '' HUP
+        _fails=0
+        while [ "$_fails" -lt 5 ]; do
+            _t0=$(date +%s)
+            /usr/bin/python3 -I "$RG351P_PADPROXY" >> "$RG351P_PADPROXY_LOG" 2>&1
+            rm -f "$RG351P_PADPROXY_RULE"
+            udevadm control --reload 2>/dev/null
+            udevadm trigger --action=change --subsystem-match=input 2>/dev/null
+            if [ $(( $(date +%s) - _t0 )) -lt 60 ]; then _fails=$((_fails + 1)); else _fails=0; fi
+            echo "padproxy exited, restart $_fails/5" >> "$RG351P_PADPROXY_LOG"
+            sleep 2
+        done
+        rm -f "$RG351P_PADPROXY_PID"
+    ) </dev/null >/dev/null 2>&1 &
+    echo $! > "$RG351P_PADPROXY_PID"
+    log_message "$PLATFORM: pad proxy started"
+}
+
+# The pad's event node: the proxy's virtual one when it exists, else the real.
+_rg351p_find_pad_node() {
+    _rg351p_real=""
+    for _rg351p_d in /sys/class/input/event*; do
+        _rg351p_n=""
+        read -r _rg351p_n 2>/dev/null < "$_rg351p_d/device/name"
+        [ "$_rg351p_n" = "$RG351P_PAD_NAME" ] || continue
+        _rg351p_ph=""
+        read -r _rg351p_ph 2>/dev/null < "$_rg351p_d/device/phys"
+        if [ "$_rg351p_ph" = "$RG351P_PADPROXY_PHYS" ]; then
+            echo "/dev/input/${_rg351p_d##*/}"
+            return 0
+        fi
+        [ -n "$_rg351p_real" ] || _rg351p_real="/dev/input/${_rg351p_d##*/}"
+    done
+    [ -n "$_rg351p_real" ] && echo "$_rg351p_real"
+}
+
+_rg351p_padproxy_node_up() {
+    case "$(_rg351p_find_pad_node)" in
+        /dev/input/event*) ;;
+        *) return 1 ;;
+    esac
+    for _rg351p_d in /sys/class/input/event*; do
+        _rg351p_ph=""
+        read -r _rg351p_ph 2>/dev/null < "$_rg351p_d/device/phys"
+        [ "$_rg351p_ph" = "$RG351P_PADPROXY_PHYS" ] && return 0
     done
     return 1
+}
+
+_rg351p_pad_input_id() {
+    _node="$(_rg351p_find_pad_node)"
+    [ -n "$_node" ] || return 1
+    _id="$(readlink -f "/sys/class/input/${_node##*/}/device" 2>/dev/null)"
+    [ -n "$_id" ] || return 1
+    echo "${_id##*/}"
 }
 
 _rg351p_rearm_bump() {
@@ -362,15 +441,17 @@ resolve_pad_node() {
         sleep 0.25
         _i=$((_i + 1))
     done
-    _pad=""
-    for _dir in /sys/class/input/event*; do
-        _name=""
-        read -r _name 2>/dev/null < "$_dir/device/name"
-        if [ "$_name" = "$RG351P_PAD_NAME" ]; then
-            _pad="/dev/input/${_dir##*/}"
-            break
-        fi
-    done
+    # Boot (not a re-arm): start the proxy before anything opens the pad, and
+    # give it up to 5 s to bring up the virtual node.
+    if [ "$1" != "rearm" ] && _rg351p_padproxy_start; then
+        _i=0
+        while [ "$_i" -lt 20 ] && ! _rg351p_padproxy_node_up; do
+            sleep 0.25
+            _i=$((_i + 1))
+        done
+        _rg351p_padproxy_node_up || log_message "$PLATFORM: pad proxy has no virtual pad yet, using the real one"
+    fi
+    _pad="$(_rg351p_find_pad_node)"
     if [ -n "$_pad" ]; then
         export EVENT_PATH_READ_INPUTS_SPRUCE="$_pad"
         export EVENT_PATH_SEND_TO_RA_AND_PPSSPP="$_pad"
@@ -408,6 +489,12 @@ _rg351p_rearm_pad_readers() {
     fi
     sleep 0.3
     _rg351p_rearm_stale "$_gen" && return 0
+
+    # With the proxy up, every reader holds the virtual pad, which never left.
+    if _rg351p_padproxy_alive && _rg351p_padproxy_node_up; then
+        log_message "$PLATFORM: pad proxy kept the controls across the sleep"
+        return 0
+    fi
 
     _before=""
     read -r _before 2>/dev/null < "$RG351P_PAD_INPUT_FILE"
@@ -503,16 +590,30 @@ set_default_ra_hotkeys() {
 # defined and before any emulator starts. A lock directory keeps two runs
 # apart; the flag is only set once every step is done, so a step that could
 # not run yet is tried again at the next boot.
-# v2: PPSSPP's UI at the V10's UIScaleFactor -1 overflows the 480x320 panel
-# (pause menu items overlap); only the untouched old value is changed.
-RG351P_MIGRATE2_FLAG="/mnt/SDCARD/Saves/flags/.rg351p_migrate_v2"
+# v5: PPSSPP fix-ups a new default alone does not reach (live copies are only
+# seeded when missing):
+# - UIScaleFactor: the V10's -1 overflows the 480x320 panel (pause menu items
+#   overlap), and -4 and -6 still did; only an untouched old value changes.
+# - controls: a live copy that still puts PSP L/R on pad buttons 7/8
+#   (10-194/10-195, an older layout) has them on the wrong buttons; this pad's
+#   L1/R1 are 10-193/10-192. Reset to the default.
+RG351P_MIGRATE2_FLAG="/mnt/SDCARD/Saves/flags/.rg351p_migrate_v5"
 _rg351p_migrate_v2() {
-    _m2live="/mnt/SDCARD/Saves/.config/ppsspp/PSP/SYSTEM/ppsspp-RG351P.ini"
-    if [ -f "$_m2live" ] && grep -qx 'UIScaleFactor = -1' "$_m2live"; then
-        sed 's/^UIScaleFactor = -1$/UIScaleFactor = -4/' "$_m2live" > "$_m2live.tmp" 2>/dev/null &&
+    _m2dir="/mnt/SDCARD/Saves/.config/ppsspp/PSP/SYSTEM"
+    _m2live="$_m2dir/ppsspp-RG351P.ini"
+    if [ -f "$_m2live" ] && grep -Eqx 'UIScaleFactor = -(1|4|6)' "$_m2live"; then
+        sed -E 's/^UIScaleFactor = -(1|4|6)$/UIScaleFactor = -8/' "$_m2live" > "$_m2live.tmp" 2>/dev/null &&
             [ -s "$_m2live.tmp" ] && mv -f "$_m2live.tmp" "$_m2live" &&
             log_message "$PLATFORM: PPSSPP UI scale lowered to fit the screen (one-time fix)" ||
             { rm -f "$_m2live.tmp"; return 0; }
+    fi
+    _m2ctl="$_m2dir/controls-RG351P.ini"
+    _m2def="/mnt/SDCARD/Emu/PSP/default_configs/SYSTEM/controls-RG351P.ini"
+    if [ -f "$_m2ctl" ] && [ -f "$_m2def" ] &&
+        grep -Eq '^(L = .*10-194|R = .*10-195)([,:]|$)' "$_m2ctl"; then
+        cp -f "$_m2def" "$_m2ctl" &&
+            log_message "$PLATFORM: PPSSPP controls reset to the default, L/R were on buttons 7/8 (one-time fix)" ||
+            return 0
     fi
     mkdir -p "${RG351P_MIGRATE2_FLAG%/*}" && touch "$RG351P_MIGRATE2_FLAG"
 }
