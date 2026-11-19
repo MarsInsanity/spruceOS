@@ -141,6 +141,11 @@ EOF
 			Flip|Brick*|SmartPro|Zero*|XU20) export PICO8_IGM_HIDE_SCANCODE=41 ;;
 		esac
 
+		# The RG351P's OSH PB pad is in no shipped sdl_controllers.* profile:
+		# hand PICO-8 the label-named map from RG351P.cfg, as the Anbernic branch does.
+		case "$PLATFORM" in
+			RG351P) export_sdl_gamecontroller_map ;;
+		esac
 		# RPMiniV2: no sdl_controllers profile has the Retroid pad, and SDL's
 		# own map swaps L2/R2. Positional, like the profiles' X360 rows: SDL A
 		# is PICO-8's O, and the profile names put O on B, the bottom button.

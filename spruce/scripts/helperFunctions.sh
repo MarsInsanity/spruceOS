@@ -178,6 +178,7 @@ device_names() {
         XUMiniM)          echo "MAGICX_XU_MINI_M"; echo "DARKMOSS" ;;
         G350)             echo "G350";    echo "DARKMOSS" ;;
         V10)              echo "POWKIDDY_V10"; echo "DARKMOSS" ;;
+        RG351P)           echo "ANBERNIC_RG351P"; echo "DARKMOSS" ;;
         Pixel2DarkMoss)   echo "GKD_PIXEL2_DARKMOSS"; echo "DARKMOSS" ;;
         RPMiniV2)         echo "RETROID_POCKET_MINI_V2"; echo "DARKMOSS" ;;
         Zero28)           echo "MAGICX_ZERO28"; echo "OAKMOSS_A133P" ;;
