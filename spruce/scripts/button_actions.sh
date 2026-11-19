@@ -53,8 +53,11 @@ kill_drastic() {
 	log_message "button_actions.sh: Killing DraStic!"
     # use sendevent to send MENU + L1 combo buttons to drastic. Brick needs it twice
     {
-        echo $B_L3 1    # Fn1 press
-        echo $B_L3 0    # Fn1 release
+        # skip Fn1 on devices with no such key (B_L3="DOESNT_EXIST" etc.)
+        case "$B_L3" in
+            [0-9]*) echo $B_L3 1    # Fn1 press
+                    echo $B_L3 0 ;; # Fn1 release
+        esac
         sleep 0.1
         echo $B_MENU 1  # MENU press
         echo $B_L1 1    # L1 press
