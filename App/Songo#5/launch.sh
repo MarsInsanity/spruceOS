@@ -250,7 +250,26 @@ export SONGO_DIR_TIP="On Spruce I suggest making a MUSIC folder in /mnt/SDCARD/"
 # sleep 0.6 # For TSP only, do not move/modify this line.
 # pm_platform_helper "$GAMEDIR/runtime/$runtime"
 
-LD_LIBRARY_PATH="$GAMEDIR/runtime/ffmpeg:$LD_LIBRARY_PATH" "$GAMEDIR/runtime/$runtime" $GODOT_OPTS --main-pack "gamedata/$pck_filename"
+songo_cmd=("$GAMEDIR/runtime/$runtime" $GODOT_OPTS --main-pack "gamedata/$pck_filename")
+
+# The runtime's SDL display server (Godot's platform/sbc, process_events) has no
+# break after its SDL_FINGER* case, so a touch falls through into SDL_QUIT and
+# Songo closes. RPMiniV2's touchscreen reaches SDL, so run the runtime in a
+# mount namespace of its own with /dev/null over the touch node: SDL cannot read
+# the node as a touchscreen and skips it. Nothing else sees the mount, and it
+# goes with the process. spruce's busybox has unshare; LightMoss's does not.
+SONGO_BB=/mnt/SDCARD/spruce/bin64/busybox
+if [ "$PLATFORM" = "RPMiniV2" ] && [ -c "$EVENT_PATH_TOUCH" ] \
+        && "$SONGO_BB" unshare -m true 2>/dev/null; then
+    songo_hide_touch='bb="$1"; node="$2"; shift 2
+"$bb" mount -o bind /dev/null "$node" || echo "Could not hide $node from SDL"
+exec "$@"'
+    echo "Hiding the touchscreen $EVENT_PATH_TOUCH from the runtime"
+    songo_cmd=("$SONGO_BB" unshare -m "$SONGO_BB" sh -c "$songo_hide_touch" songo \
+        "$SONGO_BB" "$EVENT_PATH_TOUCH" "${songo_cmd[@]}")
+fi
+
+LD_LIBRARY_PATH="$GAMEDIR/runtime/ffmpeg:$LD_LIBRARY_PATH" "${songo_cmd[@]}"
 
 # Clean up after app close
 # Revert brightness if app crashes or brighntess ends up as zero for any reason
