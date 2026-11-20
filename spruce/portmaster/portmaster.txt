@@ -30,3 +30,13 @@ case "$PLATFORM" in
         export_sdl_gamecontroller_map positional
         ;;
 esac
+
+# Retroid Pocket Mini V2 (LightMoss): PortMaster's LOVE splash (utils/pmsplash.txt)
+# and pugwash both use the system SDL2's KMSDRM driver; the splash starts first and
+# holds DRM master, so SDL's device probe in pugwash skipped the screen ("No
+# available video device") before pugwash got to stop the splash. With the probe's
+# master check off, SDL takes the screen anyway and becomes master at window
+# creation (KMSDRM_GBMInit), which pugwash does only after the splash has quit.
+case "$PLATFORM" in
+    RPMiniV2) export SDL_KMSDRM_REQUIRE_DRM_MASTER=0 ;;
+esac
