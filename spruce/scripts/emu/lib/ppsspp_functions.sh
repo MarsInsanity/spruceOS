@@ -43,15 +43,6 @@ set_up_default_configs_if_needed() {
 	done
 }
 
-# The PSP "Graphics API" option (Emu/PSP/config.json, RPMiniV2 only) for this
-# game: its per-game override, else the system-wide choice; OpenGL if unset.
-ppsspp_graphics_api() {
-	_api="$(jq -r --arg game "$GAME" \
-		'.menuOptions.graphicsBackend | (.overrides[$game] // .selected) // "OpenGL"' \
-		"$EMU_JSON_PATH" 2>/dev/null)"
-	echo "${_api:-OpenGL}"
-}
-
 move_screenshots_if_present() {
 	if [ -n "$(ls -A $PPSSPP_SCREENSHOT_LOWER_DIR/*.png 2>/dev/null)" ]; then
 		mv $PPSSPP_SCREENSHOT_LOWER_DIR/*.png "$PPSSPP_SCREENSHOT_UPPER_DIR" 2>/dev/null
@@ -112,29 +103,21 @@ run_ppsspp() {
 		# form. And a longer audio buffer: with no dmix in front, 256-frame
 		# periods are shorter than the DSP's stream keeps up with (512 failed
 		# for Godot, 2048 works), so raise anything under 1000 frames.
-		# The PSP "Graphics API" option picks the build and its backend: the
-		# dArkMoss3566 build has no Vulkan surface for KMS, so PPSSPP offers
-		# only OpenGL there; the Flip build (same version) presents Vulkan
-		# through VK_KHR_display (Turnip, LightMoss v0.2.0 on). Written at
-		# every launch, so the option, not PPSSPP's menu, sets the backend.
+		# And the build: the dArkMoss3566 one has no Vulkan surface for KMS,
+		# so PPSSPP's Settings > Graphics > Backend lists only OpenGL with it.
+		# The Flip build of the same version presents Vulkan through
+		# VK_KHR_display, so it runs whenever the image has Vulkan (Turnip,
+		# LightMoss v0.2.0 on) and PPSSPP's own Backend setting, which it
+		# keeps, picks OpenGL or Vulkan. A backend that crashed at start is
+		# skipped by PPSSPP the next time (FailedGraphicsBackends.txt).
 		"RPMiniV2")
 			export_sdl_gamecontroller_map
-			_psp_api="$(ppsspp_graphics_api)"
-			if [ "$_psp_api" = "Vulkan" ] && [ -e /usr/lib/libvulkan.so.1 ] \
-					&& [ -f "$EMU_DIR/PPSSPPSDL_Flip" ]; then
+			if [ -e /usr/lib/libvulkan.so.1 ] && [ -f "$EMU_DIR/PPSSPPSDL_Flip" ]; then
 				PSP_BIN="PPSSPPSDL_Flip"
-				_psp_backend="3 (VULKAN)"
-				# a backend PPSSPP marked as crashed is skipped at start
-				rm -f "$PPSSPP_LIVE_SYSTEM_DIR/FailedGraphicsBackends.txt"
-			else
-				[ "$_psp_api" = "Vulkan" ] && log_message "PPSSPP: no Vulkan on this image, using OpenGL"
-				_psp_backend="0 (OPENGL)"
 			fi
-			log_message "PPSSPP: $PSP_BIN, GraphicsBackend = $_psp_backend"
+			log_message "PPSSPP: $PSP_BIN, $(grep -m 1 '^GraphicsBackend' "$PPSSPP_LIVE_SYSTEM_DIR/ppsspp.ini")"
 			TMP_CFG="$(mktemp)"
 			if sed -e 's|^AudioBufferSize = [0-9]\{1,3\}$|AudioBufferSize = 2048|' \
-				-e "s|^GraphicsBackend = .*|GraphicsBackend = $_psp_backend|" \
-				-e 's|^FailedGraphicsBackends = .*|FailedGraphicsBackends = |' \
 				"$PPSSPP_LIVE_SYSTEM_DIR/ppsspp.ini" > "$TMP_CFG"; then
 				mv "$TMP_CFG" "$PPSSPP_LIVE_SYSTEM_DIR/ppsspp.ini"
 			else
