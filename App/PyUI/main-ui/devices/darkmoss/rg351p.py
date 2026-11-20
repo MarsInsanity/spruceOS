@@ -259,10 +259,16 @@ class RG351PKeyWatcher(KeyWatcherController):
             self.__dict__["_fd"] = value
         if old is None or value is None or old == value:
             return
-        try:
-            os.close(old)
-        except OSError:
-            pass
+        # The base reconnect (KeyWatcherController.poll_keyboard, on the input
+        # thread) now closes the fd it replaced itself; closing it here too
+        # would close a number another thread may already have been handed.
+        # Only RG351P's own wait loop also assigns on that thread, and there
+        # old is None. The proxy follower's swaps are closed here.
+        if threading.current_thread() is not self.__dict__.get("input_polling_thread"):
+            try:
+                os.close(old)
+            except OSError:
+                pass
         lock = self.__dict__.get("lock")
         if lock is not None:
             with lock:
