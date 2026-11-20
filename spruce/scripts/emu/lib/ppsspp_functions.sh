@@ -44,14 +44,16 @@ set_up_default_configs_if_needed() {
 }
 
 # TU_DEBUG for the PSP "Vulkan Workaround" option (Emu/PSP/config.json,
-# RPMiniV2 only), this game's override first; empty for Off. Turnip's own
+# RPMiniV2 only), this game's override first; empty for None. Turnip's own
 # switches: sysmem renders without GMEM tiles, nolrz without the low-res
 # depth buffer, noubwc without compression, flushall flushes after each draw.
+# No LRZ is the default: Turnip's LRZ (Mesa 25.2.7) hid Ridge Racer's 3D
+# scene in 8x8 blocks on the device, and nolrz fixed it.
 ppsspp_tu_debug() {
 	_wa="$(jq -r --arg game "$GAME" \
-		'.menuOptions.vulkanWorkaround | (.overrides[$game] // .selected) // "Off"' \
+		'.menuOptions.vulkanWorkaround | (.overrides[$game] // .selected) // "No LRZ"' \
 		"$EMU_JSON_PATH" 2>/dev/null)"
-	case "$_wa" in
+	case "${_wa:-No LRZ}" in
 		"Safe Mode") echo "sysmem,nolrz,noubwc,flushall" ;;
 		"No GMEM")   echo "sysmem" ;;
 		"No LRZ")    echo "nolrz" ;;

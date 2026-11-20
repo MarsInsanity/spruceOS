@@ -25,14 +25,14 @@
         "RETROID_POCKET_MINI_V2"
       ],
       "options": [
-        "Off",
+        "No LRZ",
+        "None",
         "Safe Mode",
         "No GMEM",
-        "No LRZ",
         "No UBWC",
         "Flush All"
       ],
-      "selected": "Off",
+      "selected": "No LRZ",
       "overrides": {}
     }
   },
