@@ -1,11 +1,11 @@
 RELEASE_VERSION=4.6.1
-RELEASE_CHECKSUM=55f91d4c18cf23cfc1fcccb233187d25
+RELEASE_CHECKSUM=af503c694c07dbcd9ef0af0f033ecdfd
 RELEASE_SIZE_IN_MB=1632
 RELEASE_LINK=https://github.com/MarsInsanity/spruceOS/releases/download/RPMiniV2/spruceV4.6.1-20261120.7z
 RELEASE_INFO=https://github.com/MarsInsanity/spruceOS/releases/tag/RPMiniV2
 NIGHTLY_VERSION=4.6.1-20261120
-NIGHTLY_CHECKSUM=55f91d4c18cf23cfc1fcccb233187d25
+NIGHTLY_CHECKSUM=af503c694c07dbcd9ef0af0f033ecdfd
 NIGHTLY_SIZE_IN_MB=1632
 NIGHTLY_LINK=https://github.com/MarsInsanity/spruceOS/releases/download/RPMiniV2/spruceV4.6.1-20261120.7z
 NIGHTLY_INFO=https://github.com/MarsInsanity/spruceOS/releases/tag/RPMiniV2
-NIGHTLY_COMMIT=458d3e44c419cef945e1e3f55f44f9a7779a7389
+NIGHTLY_COMMIT=19e9f27fe97c6774caf0c51083c835c5a30b25c5
