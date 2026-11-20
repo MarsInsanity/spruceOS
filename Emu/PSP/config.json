@@ -17,6 +17,23 @@
       ],
       "selected": "Performance",
       "overrides": {}
+    },
+    "vulkanWorkaround": {
+      "display": "Vulkan Workaround",
+      "description": "Turnip driver workarounds for PPSSPP's Vulkan backend",
+      "devices": [
+        "RETROID_POCKET_MINI_V2"
+      ],
+      "options": [
+        "Off",
+        "Safe Mode",
+        "No GMEM",
+        "No LRZ",
+        "No UBWC",
+        "Flush All"
+      ],
+      "selected": "Off",
+      "overrides": {}
     }
   },
   "sortOrder": 5100,

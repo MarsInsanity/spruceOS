@@ -43,6 +43,23 @@ set_up_default_configs_if_needed() {
 	done
 }
 
+# TU_DEBUG for the PSP "Vulkan Workaround" option (Emu/PSP/config.json,
+# RPMiniV2 only), this game's override first; empty for Off. Turnip's own
+# switches: sysmem renders without GMEM tiles, nolrz without the low-res
+# depth buffer, noubwc without compression, flushall flushes after each draw.
+ppsspp_tu_debug() {
+	_wa="$(jq -r --arg game "$GAME" \
+		'.menuOptions.vulkanWorkaround | (.overrides[$game] // .selected) // "Off"' \
+		"$EMU_JSON_PATH" 2>/dev/null)"
+	case "$_wa" in
+		"Safe Mode") echo "sysmem,nolrz,noubwc,flushall" ;;
+		"No GMEM")   echo "sysmem" ;;
+		"No LRZ")    echo "nolrz" ;;
+		"No UBWC")   echo "noubwc" ;;
+		"Flush All") echo "flushall" ;;
+	esac
+}
+
 move_screenshots_if_present() {
 	if [ -n "$(ls -A $PPSSPP_SCREENSHOT_LOWER_DIR/*.png 2>/dev/null)" ]; then
 		mv $PPSSPP_SCREENSHOT_LOWER_DIR/*.png "$PPSSPP_SCREENSHOT_UPPER_DIR" 2>/dev/null
@@ -114,8 +131,11 @@ run_ppsspp() {
 			export_sdl_gamecontroller_map
 			if [ -e /usr/lib/libvulkan.so.1 ] && [ -f "$EMU_DIR/PPSSPPSDL_Flip" ]; then
 				PSP_BIN="PPSSPPSDL_Flip"
+				# Only Turnip reads it; OpenGL (freedreno) ignores it.
+				_tu_debug="$(ppsspp_tu_debug)"
+				[ -n "$_tu_debug" ] && export TU_DEBUG="$_tu_debug"
 			fi
-			log_message "PPSSPP: $PSP_BIN, $(grep -m 1 '^GraphicsBackend' "$PPSSPP_LIVE_SYSTEM_DIR/ppsspp.ini")"
+			log_message "PPSSPP: $PSP_BIN, $(grep -m 1 '^GraphicsBackend' "$PPSSPP_LIVE_SYSTEM_DIR/ppsspp.ini"), TU_DEBUG=${TU_DEBUG:-none}"
 			TMP_CFG="$(mktemp)"
 			if sed -e 's|^AudioBufferSize = [0-9]\{1,3\}$|AudioBufferSize = 2048|' \
 				"$PPSSPP_LIVE_SYSTEM_DIR/ppsspp.ini" > "$TMP_CFG"; then
