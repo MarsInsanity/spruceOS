@@ -5,7 +5,13 @@
   "themecolor": "d02026",
   "launch": "../../spruce/scripts/emu/standard_launch.sh",
   "extlist": "dim|zip|img|m3u|7z|d88|88d|hdm|dup|2hd|xdf|hdf|cmd",
-  "launchlist": [],
+  "launchlist": [
+    {
+      "name": "Generate M3U playlists for multi-disc games",
+      "launch": "/mnt/SDCARD/spruce/scripts/emu/m3u_generator.sh",
+      "launchInPyUI": true
+    }
+  ],
   "menuOptions": {
     "Governor": {
       "display": "CPU Mode",
@@ -24,5 +30,5 @@
   "releaseYear": 1987,
   "default_emulator": "px68k",
   "scaling_min_freq": 816000,
-  "alternativeFolderNames": ["x68000","x68k","X68K","sharpx6800","SHARPX6800","sharpx68k","SHARPX68K"]
+  "alternativeFolderNames": ["x68k","sharpx6800","sharpx68k"]
 }

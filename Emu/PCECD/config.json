@@ -4,7 +4,7 @@
   "iconsel": "pcecd_sel.png",
   "themecolor": "EA483F",
   "launch": "../../spruce/scripts/emu/standard_launch.sh",
-  "extlist": "iso|img|chd|pce|ccd|cue|zip|7z",
+  "extlist": "m3u|iso|img|chd|pce|ccd|cue|zip|7z",
   "launchlist": [
     {
       "name": "Generate M3U playlists for multi-disc games",
@@ -30,5 +30,5 @@
   "releaseYear": 1988,
   "default_emulator": "mednafen_pce_fast",
   "scaling_min_freq": 816000,
-  "alternativeFolderNames": ["pcecd","pcenginecd","PCENGINECD","tgcd","TGCD","turbografxcd","TURBOGRAFXCD","turbocd","TURBOCD"]
+  "alternativeFolderNames": ["pcenginecd","tgcd","turbografxcd","turbocd"]
 }
