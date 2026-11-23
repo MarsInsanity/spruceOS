@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Set
+from typing import Dict, List
 
 
 class CachedExists:
@@ -11,7 +11,25 @@ class CachedExists:
     - Shared cache across the entire process
     """
 
-    _dir_cache: Dict[str, Set[str]] = {}
+    # directory -> lowercased name -> names as they are on disk
+    _dir_cache: Dict[str, Dict[str, List[str]]] = {}
+
+    @classmethod
+    def _names(cls, directory: str) -> Dict[str, List[str]]:
+        cached = cls._dir_cache.get(directory)
+        if cached is not None:
+            return cached
+
+        names: Dict[str, List[str]] = {}
+        try:
+            for f in os.listdir(directory):
+                names.setdefault(f.lower(), []).append(f)
+        except (FileNotFoundError, NotADirectoryError, PermissionError):
+            # Cache negative result to avoid re-hitting disk
+            pass
+
+        cls._dir_cache[directory] = names
+        return names
 
     @classmethod
     def exists(cls, path: str) -> bool:
@@ -24,21 +42,11 @@ class CachedExists:
         if not directory or not filename:
             return os.path.exists(path)
 
-        # Cache hit
-        cached = cls._dir_cache.get(directory)
-        if cached is not None:
-            return filename in cached
+        return filename in cls._names(directory).get(filename.lower(), ())
 
-        # Cache miss: list directory once
-        try:
-            files = set(os.listdir(directory))
-        except (FileNotFoundError, NotADirectoryError, PermissionError):
-            # Cache negative result to avoid re-hitting disk
-            cls._dir_cache[directory] = set()
-            return False
-
-        cls._dir_cache[directory] = files
-        return filename in files
+    @classmethod
+    def matches_ignore_case(cls, directory: str, filename: str) -> List[str]:
+        return cls._names(os.path.normpath(directory)).get(filename.lower(), [])
 
     @classmethod
     def invalidate_dir(cls, directory: str):
