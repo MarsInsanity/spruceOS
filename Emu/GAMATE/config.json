@@ -13,6 +13,16 @@
   "extlist": "gam|zip|7z|bin",
   "launchlist": [],
   "menuOptions": {
+    "Emulator": {
+      "display": "Retroarch Core",
+      "options": [
+        "superwhizkid",
+        "gamate",
+        "armnes"
+      ],
+      "selected": "superwhizkid",
+      "overrides": {}
+    },
     "Governor": {
       "display": "CPU Mode",
       "options": [
