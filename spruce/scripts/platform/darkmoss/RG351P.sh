@@ -175,7 +175,9 @@ device_get_battery_percent() {
     case "$_since" in ''|*[!0-9]*) _since="$_now" ;; esac
     if [ "$_uv" -le "$RG351P_VBAT_NOW_UV" ] || [ $((_now - _since)) -ge "$RG351P_VBAT_HOLD_S" ]; then
         if [ ! -e "$RG351P_VBAT_LOGGED" ]; then
-            log_message "$PLATFORM battery: ${_uv}uV near the kernel's 3.4 V power-off (gauge ${_pct}%), reporting 1%"
+            # log_message also prints the line; callers read this function's
+            # output as the percent, so keep it out of there.
+            log_message "$PLATFORM battery: ${_uv}uV near the kernel's 3.4 V power-off (gauge ${_pct}%), reporting 1%" >/dev/null
             touch "$RG351P_VBAT_LOGGED" 2>/dev/null
         fi
         echo 1
@@ -677,7 +679,8 @@ device_exit_sleep() {
 }
 
 # RetroArch's udev numbering of this pad (RG351P.cfg): Select 22, B 16, X 17,
-# Y 18, L1 19, R1 20, R2 26.
+# Y 18, L1 19, R1 20, L2 25, R2 26; the d-pad is hat 0. The values are the
+# ones retroarch-RG351P.cfg.bak ships; keep them in sync.
 set_default_ra_hotkeys() {
     RA_FILE="$(platform_path "/mnt/SDCARD/Saves/ra-configs/retroarch-%s.cfg")"
 
@@ -695,9 +698,9 @@ set_default_ra_hotkeys() {
         "input_toggle_fast_forward_btn = \"26\"" \
         "input_screenshot_btn = \"nul\"" \
         "input_shader_toggle_btn = \"nul\"" \
-        "input_state_slot_decrease_btn = \"nul\"" \
-        "input_state_slot_increase_btn = \"nul\"" \
-        "input_toggle_slowmotion_btn = \"nul\""
+        "input_state_slot_decrease_btn = \"h0left\"" \
+        "input_state_slot_increase_btn = \"h0right\"" \
+        "input_toggle_slowmotion_btn = \"25\""
 }
 
 # The stick click that is spruce's menu button (B_MENU, RG351P.cfg) must not
