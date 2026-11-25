@@ -309,8 +309,8 @@ def main():
             try:
                 grab(pfd)
             except OSError as e:
-                os.close(pfd)
-                open_failed(e)      # the next pass grabs through open_pad
+                # grab() closed pfd; the next pass grabs through open_pad.
+                open_failed(e)
                 continue
         else:
             try:
