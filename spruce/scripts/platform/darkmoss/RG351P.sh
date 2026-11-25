@@ -175,7 +175,9 @@ device_get_battery_percent() {
     case "$_since" in ''|*[!0-9]*) _since="$_now" ;; esac
     if [ "$_uv" -le "$RG351P_VBAT_NOW_UV" ] || [ $((_now - _since)) -ge "$RG351P_VBAT_HOLD_S" ]; then
         if [ ! -e "$RG351P_VBAT_LOGGED" ]; then
-            log_message "$PLATFORM battery: ${_uv}uV near the kernel's 3.4 V power-off (gauge ${_pct}%), reporting 1%"
+            # log_message also prints the line; callers read this function's
+            # output as the percent, so keep it out of there.
+            log_message "$PLATFORM battery: ${_uv}uV near the kernel's 3.4 V power-off (gauge ${_pct}%), reporting 1%" >/dev/null
             touch "$RG351P_VBAT_LOGGED" 2>/dev/null
         fi
         echo 1
